@@ -3,9 +3,15 @@ name = "hoverpanel"
 version = "0.1.0"
 edition = "2024"
 
+[dependencies]
+anyhow = "1.0.100"
+offdictd.workspace = true
+tracing = "0.1.41"
+tracing-subscriber = "0.3.20"
+
 [workspace.dependencies]
 metacomplete = "=2.0.1"
-offdictd = { path = "../offdictd" }
+offdictd = { path = "./offdictd" }
 
 [workspace]
 members = ["offdictd"]
