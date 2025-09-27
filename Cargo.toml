@@ -1,0 +1,11 @@
+[package]
+name = "hoverpanel"
+version = "0.1.0"
+edition = "2024"
+
+[workspace.dependencies]
+metacomplete = "=2.0.1"
+offdictd = { path = "../offdictd" }
+
+[workspace]
+members = ["offdictd"]
