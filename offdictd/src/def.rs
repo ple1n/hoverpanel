@@ -16,15 +16,15 @@ pub use std::error::Error;
 pub use std::fs::File;
 pub use std::io::{Read, Write};
 
-use crate::def_bin;
+use crate::def_bin::{self, Def};
 
 #[serde_with::skip_serializing_none]
 #[derive(Serialize, Deserialize, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone)]
-pub struct Def {
-    pub definitions: Option<Vec<Def>>,
+pub struct SrcDef {
+    pub definitions: Option<Vec<SrcDef>>,
     // Hierarchical definitions. Definitions from different dictionaries, and in the same dictionary there is multiple definitions
     // Merging the definitions can be considered.
-    pub groups: Option<Vec<Def>>, // Alias for definitions
+    pub groups: Option<Vec<SrcDef>>, // Alias for definitions
     pub etymology: Option<Vec<String>>,
     pub EN: Option<String>,
     pub pronunciation: Option<pronunciation>,
@@ -42,9 +42,9 @@ pub struct Def {
     pub dictName: Option<String>,
 }
 
-impl Default for Def {
+impl Default for SrcDef {
     fn default() -> Self {
-        Def {
+        SrcDef {
             word: None,
             definitions: None, // Definitions from different dicts
             groups: None,
@@ -177,10 +177,10 @@ fn test_empty() {
 
     let opstr = Some("".to_owned());
 
-    let e1 = Def::default();
+    let e1 = SrcDef::default();
     assert!(e1.empty_());
 
-    let e2 = Def {
+    let e2 = SrcDef {
         info: opstr.clone(),
         index: Some(89),
         dictName: opstr.clone(),
@@ -188,13 +188,13 @@ fn test_empty() {
     };
     assert!(e2.empty_());
 
-    let e3 = Def {
+    let e3 = SrcDef {
         info: Some("aaa".to_owned()),
         ..Default::default()
     };
     assert!(!e3.empty_());
 
-    let mut e4: Def = serde_yaml::from_str("
+    let mut e4: SrcDef = serde_yaml::from_str("
     definitions:
     - {}
     - EN: If there is a certain amount of something left, or if you have a certain amount of it left, it remains when the rest has gone or been used.
@@ -219,7 +219,7 @@ fn test_empty() {
     assert!(e4.empty_())
 }
 
-impl Emptyable for Def {
+impl Emptyable for SrcDef {
     fn empty_(&self) -> bool {
         let defs = if self.definitions.is_none() {
             &self.groups
@@ -240,8 +240,8 @@ impl Emptyable for Def {
     }
 }
 
-impl Def {
-    pub fn for_machine(self) -> def_bin::Def {
+impl SrcDef {
+    pub fn for_machine(self) -> Def {
         self.into()
     }
     // Remove "" strings

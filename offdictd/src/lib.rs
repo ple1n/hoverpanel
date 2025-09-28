@@ -307,7 +307,7 @@ impl<Ix: Indexer> offdict<Ix> {
     }
 
     pub fn import_from_file(&self, path: &str, dict_name: &str) -> Result<()> {
-        let ds = Def::load_yaml(&path, &dict_name)?;
+        let ds = SrcDef::load_yaml(&path, &dict_name)?;
         debug_println!("loaded {} Defs", ds.len());
         self.import_defs(ds)?;
 
@@ -392,14 +392,14 @@ impl<Ix: Indexer> offdict<Ix> {
 // Result of yaml checking
 #[derive(Serialize)]
 struct DefCheck {
-    def: Def,
+    def: SrcDef,
     has_non_empty_alternative: bool,
 }
 
-impl<'a> AnyDef<'a, Self> for Def {
+impl<'a> AnyDef<'a, Self> for SrcDef {
     fn load_yaml(path: &str, name: &str) -> Result<Vec<DefItem>> {
         let file = File::open(path).expect("Unable to open file");
-        let mut yaml_defs: Vec<Def> = serde_yaml::from_reader(file)?;
+        let mut yaml_defs: Vec<SrcDef> = serde_yaml::from_reader(file)?;
         for def in yaml_defs.iter_mut() {
             (*def).dictName = Some(name.to_owned());
         }
@@ -410,7 +410,7 @@ impl<'a> AnyDef<'a, Self> for Def {
     }
 
     fn check_yaml_defs(
-        imported_Defs: Vec<Def>,
+        imported_Defs: Vec<SrcDef>,
         save: bool,
         mut unused: BTreeSet<String>,
         path: &str,
@@ -425,8 +425,8 @@ impl<'a> AnyDef<'a, Self> for Def {
 
         // Outputs a cleaned up source, best effort
         if save {
-            let empty_Defs: Vec<Def>;
-            let mut non_empty_Defs: Vec<Def>;
+            let empty_Defs: Vec<SrcDef>;
+            let mut non_empty_Defs: Vec<SrcDef>;
             empty_Defs = imported_Defs
                 .iter()
                 .filter(|d| d.empty_())
@@ -456,7 +456,7 @@ impl<'a> AnyDef<'a, Self> for Def {
             let mut imported_words_m: collections::BTreeMap<String, bool> =
                 collections::BTreeMap::new();
 
-            let unique_Defs: Vec<Def> = non_empty_Defs
+            let unique_Defs: Vec<SrcDef> = non_empty_Defs
                 .into_iter()
                 .filter(|x| {
                     if *imported_words_m
@@ -478,7 +478,7 @@ impl<'a> AnyDef<'a, Self> for Def {
                 with_alt
             );
 
-            let cleaned: Vec<Def> = unique_Defs.into_iter().map(|i| i.cleanup()).collect();
+            let cleaned: Vec<SrcDef> = unique_Defs.into_iter().map(|i| i.cleanup()).collect();
             let mut pb = PathBuf::from_str(path).unwrap();
             let fname = pb.file_name().unwrap().to_os_string();
             pb.pop();
@@ -519,7 +519,7 @@ pub trait AnyDef<'a, T: Deserialize<'a>> {
     fn load_yaml(path: &str, name: &str) -> Result<Vec<DefItem>>;
 
     fn check_yaml(path: &str, save: bool);
-    fn check_yaml_defs(imported_Defs: Vec<Def>, save: bool, unused: BTreeSet<String>, path: &str);
+    fn check_yaml_defs(imported_Defs: Vec<SrcDef>, save: bool, unused: BTreeSet<String>, path: &str);
 }
 
 // store in database as wrapped
@@ -535,7 +535,7 @@ pub fn flatten(wr: Vec<DefItemWrapped>) -> Vec<DefItem> {
     res
 }
 
-pub fn flatten_human(wr: Vec<DefItemWrapped>) -> Vec<Def> {
+pub fn flatten_human(wr: Vec<DefItemWrapped>) -> Vec<SrcDef> {
     let mut res = Vec::new();
     for wrapper in wr.into_iter() {
         res.extend(wrapper.vec_human())
@@ -543,7 +543,7 @@ pub fn flatten_human(wr: Vec<DefItemWrapped>) -> Vec<Def> {
     res
 }
 
-impl Def {
+impl SrcDef {
     pub fn normalize_def(mut self) -> Self {
         if self.groups.is_some() {
             self.definitions = self.groups;
@@ -643,7 +643,7 @@ where
                 for entry in glob::glob_with(&path, options)? {
                     let entr = entry?;
                     println!("checking {}", entr.to_str().unwrap());
-                    Def::check_yaml(entr.to_str().unwrap(), save);
+                    SrcDef::check_yaml(entr.to_str().unwrap(), save);
                 }
 
                 return Ok(false);
@@ -662,8 +662,8 @@ where
         }
         Some(Commands::lookup { query }) => {
             for d in db()?.search(&query, 1, true)? {
-                let list: Vec<Def> = d.vec_human();
-                println!("{}", serde_yaml::to_string::<Vec<Def>>(&list)?)
+                let list: Vec<SrcDef> = d.vec_human();
+                println!("{}", serde_yaml::to_string::<Vec<SrcDef>>(&list)?)
             }
             Ok(false)
         }
@@ -823,7 +823,7 @@ pub async fn readline() -> Result<String> {
     Ok(lines.next_line().await?.unwrap())
 }
 
-pub fn api_q<Ix: Indexer>(db: &offdict<Ix>, query: &str, opts: ApiOpts) -> Result<Vec<Def>>
+pub fn api_q<Ix: Indexer>(db: &offdict<Ix>, query: &str, opts: ApiOpts) -> Result<Vec<SrcDef>>
 where
     offdict<Ix>: Diverge,
 {
@@ -846,7 +846,7 @@ where
     for d in arr.into_iter() {
         println!(
             "{}",
-            serde_yaml::to_string::<Vec<Def>>(&d.vec_human()).unwrap()
+            serde_yaml::to_string::<Vec<SrcDef>>(&d.vec_human()).unwrap()
         );
     }
 
@@ -857,7 +857,7 @@ pub use def::*;
 
 use crate::topk::TopkParam;
 pub mod def;
-mod tests;
+pub mod tests;
 
 #[cfg(feature = "fst")]
 pub mod fst_index;

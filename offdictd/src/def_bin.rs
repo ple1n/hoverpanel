@@ -41,9 +41,9 @@ impl Def {
     }
 }
 
-
 #[derive(Serialize, Deserialize, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Default)]
 pub struct Def {
+    /// canon
     pub definitions: Option<Vec<Def>>,
     // Hierarchical definitions. Definitions from different dictionaries, and in the same dictionary there is multiple definitions
     // Merging the definitions can be considered.
@@ -74,12 +74,9 @@ pub enum shorthand<O> {
     none,
 }
 
-
 pub type example = shorthand<example_obj>;
 
-
 pub type pronunciation = shorthand<String>;
-
 
 #[derive(Serialize, Deserialize, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct example_obj {
@@ -87,9 +84,7 @@ pub struct example_obj {
     EN: Option<String>,
 }
 
-
 pub type tip = shorthand<tip_obj>;
-
 
 #[derive(Serialize, Deserialize, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct tip_obj {
@@ -97,13 +92,13 @@ pub struct tip_obj {
     EN: Option<String>,
 }
 
-impl From<super::Def> for Def {
-    fn from(value: super::Def) -> Self {
+impl From<super::SrcDef> for Def {
+    fn from(value: super::SrcDef) -> Self {
         unsafe { transmute(value) }
     }
 }
 
-impl From<Def> for super::Def {
+impl From<Def> for super::SrcDef {
     fn from(value: Def) -> Self {
         let mut d: Self = unsafe { transmute(value) };
         d.normalize_def()
@@ -130,7 +125,7 @@ impl WrapperDef {
         self.items.append(&mut other.items);
         self
     }
-    pub fn vec_human(self) -> Vec<super::Def> {
+    pub fn vec_human(self) -> Vec<super::SrcDef> {
         self.items
             .into_values()
             .into_iter()
@@ -141,7 +136,7 @@ impl WrapperDef {
 
 #[test]
 fn test_wrapper() {
-    let d: def::Def =serde_yaml::from_str("
+    let d: def::SrcDef =serde_yaml::from_str("
     definitions:
     - {}
     - EN: If there is a certain amount of something left, or if you have a certain amount of it left, it remains when the rest has gone or been used.

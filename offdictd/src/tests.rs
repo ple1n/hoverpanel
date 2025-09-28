@@ -1,23 +1,54 @@
-
+use anyhow::Result;
 use core::fmt::Debug;
 use serde::{Deserialize, Serialize};
 pub use serde_yaml::{self};
 use std::cmp;
+use std::collections::BTreeMap;
 use std::error::Error;
 
-const FIXTURE_PATH: &'static str = "./fixtures/dict.yaml";
+pub const FIXTURE_PATH: &'static str = "./offdictd/fixtures/dict.yaml";
 
-use crate::{def, def_bin, Def};
+use crate::def::SrcDef;
+use crate::def_bin::{Def, WrapperDef};
+use crate::{def, def_bin, DefItemWrapped};
 use bincode::Options;
 // use postcard;
 use std::fs::File;
 use std::ops::Deref;
 
-fn load_fixture() -> Result<Vec<def::Def>, Box<dyn Error>> {
+pub fn load_fixture() -> Result<Vec<SrcDef>> {
     let file = File::open(FIXTURE_PATH).expect("Unable to open file");
-    let yaml_defs: Vec<def::Def> = serde_yaml::from_reader(file)?;
+    let yaml_defs: Vec<SrcDef> = serde_yaml::from_reader(file)?;
 
     Ok(yaml_defs)
+}
+
+pub fn collect_defs(defs: Vec<Def>) -> BTreeMap<String, DefItemWrapped> {
+    let mut map = BTreeMap::new();
+    let sd = String::new();
+    for de in defs {
+        let word = de.word.as_ref().unwrap();
+        if !map.contains_key(word) {
+            map.insert(word.to_owned(), Default::default());
+        }
+        let for_word: &mut WrapperDef = map.get_mut(de.word.as_ref().unwrap()).unwrap();
+        if for_word.word.is_empty() {
+            for_word.word = word.to_owned();
+        }
+        let dict_name = de.dictName.as_ref().unwrap_or(&sd);
+        if !for_word.items.contains_key(dict_name) {
+            for_word
+                .items
+                .insert(dict_name.to_owned(), Default::default());
+        }
+        let dict_def = for_word.items.get_mut(dict_name).unwrap();
+        if dict_def.definitions.is_none() {
+            dict_def.definitions = Some(Default::default());
+        }
+        dict_def.definitions.as_mut().unwrap().push(de);
+    }
+
+    map
 }
 
 fn test_bincode<T: for<'a> Deserialize<'a> + Serialize + Debug + PartialEq>(value: T) {
@@ -51,16 +82,16 @@ fn test_bincode<T: for<'a> Deserialize<'a> + Serialize + Debug + PartialEq>(valu
 // }
 
 #[test]
-#[should_panic]// The original struct is too weird ...
+#[should_panic] // The original struct is too weird ...
 fn bincode_orig_def() {
-    let value: Def = Def::default();
+    let value: SrcDef = SrcDef::default();
 
     test_bincode(value);
 }
 
 #[test]
 fn bincode_def() {
-    let value: def_bin::Def = def_bin::Def::default();
+    let value: Def = Def::default();
     // fails if using `#[serde(skip_serializing_if = "Option::is_none")]`
     test_bincode(value);
 }
@@ -79,28 +110,28 @@ fn bincode_def() {
 
 #[test]
 fn editable_formats() {
-    let d = def::Def {
+    let d = SrcDef {
         word: Some("bincode".to_owned()),
         dictName: Some("bincode".to_owned()),
         ..Default::default()
     };
 
     println!("{}", serde_yaml::to_string(&d).unwrap());
-    let d_: def_bin::Def = d.clone().for_machine();
+    let d_: Def = d.clone().for_machine();
     dbg!(&d_);
-    let d1: def::Def = d_.into();
+    let d1: SrcDef = d_.into();
 
     assert_eq!(d, d1);
 }
 
 #[test]
 fn yaml() {
-    let value: Def = Def::default();
+    let value: SrcDef = SrcDef::default();
 
     let mut value_bytes = Vec::new();
     serde_yaml::to_writer(&mut value_bytes, &value).unwrap();
 
-    let value_d: Def = serde_yaml::from_reader(value_bytes.as_slice()).unwrap();
+    let value_d: SrcDef = serde_yaml::from_reader(value_bytes.as_slice()).unwrap();
     assert_eq!(value, value_d);
 }
 
@@ -108,16 +139,16 @@ fn yaml() {
 fn from_yaml() -> Result<(), Box<dyn Error>> {
     let d = load_fixture()?;
 
-    let vec_d: Vec<def_bin::Def> = d
+    let vec_d: Vec<Def> = d
         .into_iter()
         .map(|mut x| x.normalize_def().into())
         .collect();
     // loads sources of old format and turns them into new format
 
     for dn in vec_d {
-        let dn_: def::Def = dn.clone().into(); // human-oriented format
+        let dn_: SrcDef = dn.clone().into(); // human-oriented format
         println!("{}", serde_yaml::to_string(&dn_).unwrap());
-        assert_eq!(dn, dn_.for_machine()); 
+        assert_eq!(dn, dn_.for_machine());
 
         test_bincode(dn) // let's just use bincode, not postcard
     }
