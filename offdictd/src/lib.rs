@@ -9,7 +9,7 @@
 use anyhow::bail;
 pub use anyhow::Result;
 
-#[cfg(feature="fst")]
+#[cfg(feature = "fst")]
 use fst_index::fstmmap;
 
 use owo_colors::OwoColorize;
@@ -200,25 +200,25 @@ impl<Ix: Indexer> offdict<Ix> {
         opts.set_block_based_table_factory(&tableopts);
 
         db = Arc::new(rocks::open(&opts, path.join(DBPATH)).unwrap().into());
+
         Self::from_db(db, path)
     }
 
-    pub fn from_db(db: Arc<RwLock<rocks>>, path: PathBuf) -> Result<Self> {
+    pub fn load_index(&mut self, path: PathBuf) -> Result<()> {
         let idx = path.join(Ix::FILE_NAME);
-        let od = if idx.exists() {
-            offdict {
-                db,
-                set: Some(Ix::load_file(&idx)?),
-                dirpath: path,
-                set_input: None,
-            }
-        } else {
-            offdict {
-                db,
-                set: None,
-                dirpath: path,
-                set_input: None,
-            }
+        if idx.exists() {
+            self.set = Some(Ix::load_file(&idx)?);
+        }
+
+        anyhow::Ok(())
+    }
+
+    pub fn from_db(db: Arc<RwLock<rocks>>, path: PathBuf) -> Result<Self> {
+        let od = offdict {
+            db,
+            set: None,
+            dirpath: path,
+            set_input: None,
         };
 
         Ok(od)
