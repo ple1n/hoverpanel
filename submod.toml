@@ -1,0 +1,9 @@
+[defaults]
+ignore = "dirty"    # ignore dirty state in status
+update = "checkout" # update method
+branch = "main" 
+
+[wayland]
+path = "wayland"
+branch = "master"
+url = "https://github.com/ple1n/wayland-popup"

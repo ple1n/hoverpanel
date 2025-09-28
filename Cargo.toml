@@ -8,10 +8,12 @@ anyhow = "1.0.100"
 offdictd.workspace = true
 tracing = "0.1.41"
 tracing-subscriber = "0.3.20"
+wayland.workspace = true
 
 [workspace.dependencies]
-metacomplete = "=2.0.1"
+metacomplete = { path = "./metacomplete", features = ["serde"] }
 offdictd = { path = "./offdictd" }
+wayland = { package = "layer-shell-wgpu-egui", path = "./wayland-popup" }
 
 [workspace]
-members = ["offdictd"]
+members = ["offdictd", "wayland-popup"]

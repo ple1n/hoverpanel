@@ -1,3 +1,6 @@
 [submodule "wayland-popup"]
 	path = wayland-popup
 	url = https://github.com/ple1n/wayland-popup
+[submodule "metacomplete"]
+	path = metacomplete
+	url = https://github.com/ple1n/strprox
