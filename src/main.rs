@@ -8,7 +8,7 @@ use offdictd::{
 use wayland::{
     self, App,
     application::{MsgQueue, WgpuLayerShellApp},
-    egui::{self, Color32, Context, Margin, RichText, Ui, Visuals, scroll_area},
+    egui::{self, Color32, Context, Margin, RichText, Ui, Vec2, Visuals, scroll_area},
     egui_chinese_font,
     layer_shell::{Anchor, KeyboardInteractivity, Layer, LayerShellOptions},
     run_layer,
@@ -92,6 +92,7 @@ impl HoverPanelApp {
                     ui.set_width(win.width());
                     scroll_area::ScrollArea::vertical()
                         .scroll_bar_visibility(scroll_area::ScrollBarVisibility::VisibleWhenNeeded)
+                        .wheel_scroll_multiplier(Vec2::new(1., 15.))
                         .auto_shrink([false, false])
                         .show(ui, |ui| {
                             for per_word in &self.search {
@@ -111,19 +112,22 @@ impl HoverPanelApp {
 }
 
 fn display(de: &Def, ui: &mut Ui, depth: u32) {
-    if let Some(cn) = &de.CN {
-        egui::containers::Frame::new()
-            .inner_margin(Margin {
-                left: depth as i8 * 5,
-                ..Default::default()
-            })
-            .show(ui, |ui| {
-                ui.label(
-                    RichText::new(format!("d={}", depth)).color(Color32::WHITE.gamma_multiply(0.4)),
-                );
+    egui::containers::Frame::new()
+        .inner_margin(Margin {
+            left: depth as i8 * 5,
+            ..Default::default()
+        })
+        .show(ui, |ui| {
+            ui.label(
+                RichText::new(format!("d={}", depth)).color(Color32::WHITE.gamma_multiply(0.4)),
+            );
+            if let Some(cn) = &de.CN {
                 ui.label(RichText::new(cn.to_owned()));
-            });
-    }
+            }
+            if let Some(cn) = &de.EN {
+                ui.label(RichText::new(cn.to_owned()));
+            }
+        });
     for de in de.definitions.iter().flatten() {
         display(de, ui, depth + 1);
     }
