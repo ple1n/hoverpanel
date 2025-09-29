@@ -87,14 +87,36 @@ impl IntoIterator for shorthand<String> {
     }
 }
 
+pub enum MaybeString<O> {
+    str(String),
+    obj(O),
+}
+
+pub trait MaybeStringObject {}
+
+impl MaybeStringObject for example_obj {}
+
+impl<O: MaybeStringObject + 'static> IntoIterator for shorthand<O> {
+    type Item = MaybeString<O>;
+    type IntoIter = Box<dyn Iterator<Item = Self::Item>>;
+    fn into_iter(self) -> Self::IntoIter {
+        match self {
+            Self::obj(st) => Box::new([MaybeString::obj(st)].into_iter()),
+            Self::vec(vstring) => Box::new(vstring.into_iter().flatten().map(MaybeString::str)),
+            Self::str(st) => Box::new([MaybeString::str(st)].into_iter()),
+            Self::none => Box::new([].into_iter()),
+        }
+    }
+}
+
 pub type example = shorthand<example_obj>;
 
 pub type pronunciation = shorthand<String>;
 
 #[derive(Serialize, Deserialize, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct example_obj {
-    CN: Option<String>,
-    EN: Option<String>,
+    pub CN: Option<String>,
+    pub EN: Option<String>,
 }
 
 pub type tip = shorthand<tip_obj>;
