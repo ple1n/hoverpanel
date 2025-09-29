@@ -74,6 +74,19 @@ pub enum shorthand<O> {
     none,
 }
 
+impl IntoIterator for shorthand<String> {
+    type Item = String;
+    type IntoIter = Box<dyn Iterator<Item = String>>;
+    fn into_iter(self) -> Self::IntoIter {
+        match self {
+            Self::obj(st) => Box::new([st].into_iter()),
+            Self::vec(vstring) => Box::new(vstring.into_iter().flatten()),
+            Self::str(st) => Box::new([st].into_iter()),
+            Self::none => Box::new([].into_iter()),
+        }
+    }
+}
+
 pub type example = shorthand<example_obj>;
 
 pub type pronunciation = shorthand<String>;
