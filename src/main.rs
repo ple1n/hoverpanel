@@ -250,9 +250,11 @@ impl HoverPanelApp {
 
         egui::CentralPanel::default()
             .frame(
-                egui::Frame::new()
-                    .inner_margin(Margin::same(15))
-                    .fill(Color32::BLACK.gamma_multiply(0.5)),
+                egui::Frame::new().inner_margin(Margin::same(15)).fill(
+                    Color32::BLACK
+                        .blend(Color32::WHITE.gamma_multiply(0.25))
+                        .gamma_multiply(0.65),
+                ),
             )
             .show(ctx, |ui| {
                 let h = ui.available_height() - 30.;
@@ -403,7 +405,7 @@ fn display(de: &Def, ui: &mut Ui, inherit: Inherited) {
                 de.t2.clone().unwrap_or_default()
             );
             let number_t = number_t.trim();
-            
+
             ui.horizontal_wrapped(|ui| {
                 ui.label(RichText::new(number_t));
 
