@@ -1,4 +1,4 @@
-use std::{thread, time::Duration};
+use std::{env, path::PathBuf, thread, time::Duration};
 
 use eframe::{
     NativeOptions,
@@ -9,7 +9,7 @@ use hoverpanel::console::{console_over_ev, thread_console};
 use offdictd::{
     self, DefItemWrapped,
     def_bin::{Def, MaybeString, WrapperDef},
-    offdict, stat,
+    init_db, offdict, process_cmd, stat,
     tests::{collect_defs, load_fixture},
     topk::Strprox,
 };
@@ -32,6 +32,14 @@ use anyhow::Result;
 static START_AS_DEBUG: bool = false;
 
 fn main() -> Result<()> {
+    let has_args = std::env::args().len() > 1;
+
+    let db_path = env::current_dir()?.join("./data");
+    if has_args {
+        process_cmd(|| init_db(db_path.clone()))?;
+        return Ok(());
+    }
+
     let opts = LayerShellOptions {
         width: if START_AS_DEBUG { 1000 } else { 400 },
         height: 800,
@@ -407,13 +415,15 @@ fn display(de: &Def, ui: &mut Ui, inherit: Inherited) {
             let number_t = number_t.trim();
 
             ui.horizontal_wrapped(|ui| {
-                ui.label(RichText::new(number_t));
+                ui.label(
+                    RichText::new(number_t).background_color(Color32::ORANGE.gamma_multiply(0.2)),
+                );
 
                 for ex in de.examples.iter().flatten() {
                     for ex in ex.clone().into_iter() {
                         match ex {
                             MaybeString::str(st) => {
-                                ui.label(RichText::new(st));
+                                ui.label(RichText::new(st).underline());
                             }
                             MaybeString::obj(de) => {
                                 if let Some(cn) = &de.CN {
