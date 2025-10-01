@@ -77,7 +77,7 @@ impl std::fmt::Display for stat {
 
 pub type candidate = String;
 pub type candidates = Vec<candidate>;
-pub struct offdict<index: Indexer> {
+pub struct Offdict<index: Indexer> {
     db: Arc<RwLock<rocks>>,
     pub set: Option<index>,
     dirpath: PathBuf,
@@ -131,7 +131,7 @@ pub trait Diverge {
     }
 }
 
-impl Diverge for offdict<Strprox> {
+impl Diverge for Offdict<Strprox> {
     type Ix = Strprox;
     fn search(&self, query: &str, num: usize, _: bool) -> Result<Vec<DefItemWrapped>> {
         let cands = self.candidates(query, TopkParam::new(num))?;
@@ -170,14 +170,14 @@ impl Diverge for offdict<Strprox> {
 
 pub const DBPATH: &str = "dicts.db";
 
-pub fn rmdata<Ix: Indexer>(data: &offdict<Ix>) -> Result<()> {
+pub fn rmdata<Ix: Indexer>(data: &Offdict<Ix>) -> Result<()> {
     let dp = &data.dirpath;
     remove_dir_all(dp)?;
 
     Ok(())
 }
 
-impl<Ix: Indexer> offdict<Ix> {
+impl<Ix: Indexer> Offdict<Ix> {
     pub fn serialize<T: Serialize>(v: &T) -> Result<Vec<u8>, Box<bincode::ErrorKind>> {
         bincode::serialize(v)
     }
@@ -214,7 +214,7 @@ impl<Ix: Indexer> offdict<Ix> {
     }
 
     pub fn from_db(db: Arc<RwLock<rocks>>, path: PathBuf) -> Result<Self> {
-        let od = offdict {
+        let od = Offdict {
             db,
             set: None,
             dirpath: path,
@@ -626,9 +626,9 @@ struct Cli {
     command: Option<Commands>,
 }
 
-pub fn process_cmd<'a, D: Indexer>(db: impl FnOnce() -> Result<&'a mut offdict<D>>) -> Result<bool>
+pub fn process_cmd<'a, D: Indexer>(db: impl FnOnce() -> Result<&'a mut Offdict<D>>) -> Result<bool>
 where
-    offdict<D>: Diverge,
+    Offdict<D>: Diverge,
 {
     let args = Cli::parse();
 
@@ -696,7 +696,7 @@ fn test_worse_case() -> Result<()> {
     let case = "bring more land under cultivation";
     let conf = crate::config::get_config();
     let db_path = PathBuf::from(conf.data_path.clone());
-    let db = offdict::<Strprox>::open_db(db_path)?;
+    let db = Offdict::<Strprox>::open_db(db_path)?;
     println!("testing");
     db.search(case, 3, false)?;
     Ok(())
@@ -706,12 +706,12 @@ use std::sync::{Arc, RwLock};
 use tokio::{self};
 use warp::Filter;
 
-pub static mut DB: Option<offdict<Strprox>> = None;
+pub static mut DB: Option<Offdict<Strprox>> = None;
 
-pub fn init_db(db_path: PathBuf) -> Result<&'static mut offdict<Strprox>> {
+pub fn init_db(db_path: PathBuf) -> Result<&'static mut Offdict<Strprox>> {
     if let Some(_o) = unsafe { &DB } {
     } else {
-        unsafe { DB = Some(offdict::<Strprox>::open_db(db_path)?) };
+        unsafe { DB = Some(Offdict::<Strprox>::open_db(db_path)?) };
     }
     Ok(unsafe { DB.as_mut() }.unwrap())
 }
@@ -731,9 +731,9 @@ pub struct ApiOpts {
 #[derive(Deserialize, Default, Serialize)]
 pub struct SetRes;
 
-pub async fn serve<Ix: Indexer + Send + Sync + 'static>(db: &'static offdict<Ix>) -> Result<()>
+pub async fn serve<Ix: Indexer + Send + Sync + 'static>(db: &'static Offdict<Ix>) -> Result<()>
 where
-    offdict<Ix>: Diverge,
+    Offdict<Ix>: Diverge,
 {
     let lookup = warp::get()
         .and(warp::path("q"))
@@ -781,9 +781,9 @@ where
         .await)
 }
 
-pub async fn repl<Ix: Indexer>(db: &offdict<Ix>) -> Result<()>
+pub async fn repl<Ix: Indexer>(db: &Offdict<Ix>) -> Result<()>
 where
-    offdict<Ix>: Diverge,
+    Offdict<Ix>: Diverge,
 {
     loop {
         let li = readline().await.unwrap();
@@ -823,9 +823,9 @@ pub async fn readline() -> Result<String> {
     Ok(lines.next_line().await?.unwrap())
 }
 
-pub fn api_q<Ix: Indexer>(db: &offdict<Ix>, query: &str, opts: ApiOpts) -> Result<Vec<SrcDef>>
+pub fn api_q<Ix: Indexer>(db: &Offdict<Ix>, query: &str, opts: ApiOpts) -> Result<Vec<SrcDef>>
 where
-    offdict<Ix>: Diverge,
+    Offdict<Ix>: Diverge,
 {
     println!("\nq: {}", query);
 
@@ -835,9 +835,9 @@ where
     Ok(def_list)
 }
 
-fn respond<Ix: Indexer>(line: &str, db: &offdict<Ix>) -> Result<bool>
+fn respond<Ix: Indexer>(line: &str, db: &Offdict<Ix>) -> Result<bool>
 where
-    offdict<Ix>: Diverge,
+    Offdict<Ix>: Diverge,
 {
     let mut arr = db.search(line, 2, true)?;
 

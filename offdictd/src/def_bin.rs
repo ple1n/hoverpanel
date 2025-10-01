@@ -50,7 +50,7 @@ pub struct Def {
     pub groups: Option<Vec<Def>>, // Alias for definitions
     pub etymology: Option<Vec<String>>,
     pub EN: Option<String>,
-    pub pronunciation: Option<pronunciation>,
+    pub pronunciation: Option<Pronunciation>,
     pub title: Option<String>,
     pub info: Option<String>,
     pub r#type: Option<String>,
@@ -59,70 +59,70 @@ pub struct Def {
     pub CN: Option<String>,
     pub t1: Option<String>,
     pub t2: Option<String>,
-    pub examples: Option<Vec<example>>,
-    pub tip: Option<Vec<tip>>,
+    pub examples: Option<Vec<Example>>,
+    pub tip: Option<Vec<Tip>>,
     pub related: Option<Vec<String>>,
     pub dictName: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Default)]
-pub enum shorthand<O> {
-    obj(O),
-    vec(Vec<Option<String>>),
-    str(String),
+pub enum MaybeStructuredText<O = ()> {
+    Object(O),
+    Vec(Vec<Option<String>>),
+    Str(String),
     #[default]
-    none,
+    None,
 }
 
-impl IntoIterator for shorthand<String> {
+impl IntoIterator for MaybeStructuredText<String> {
     type Item = String;
     type IntoIter = Box<dyn Iterator<Item = String>>;
     fn into_iter(self) -> Self::IntoIter {
         match self {
-            Self::obj(st) => Box::new([st].into_iter()),
-            Self::vec(vstring) => Box::new(vstring.into_iter().flatten()),
-            Self::str(st) => Box::new([st].into_iter()),
-            Self::none => Box::new([].into_iter()),
+            Self::Object(st) => Box::new([st].into_iter()),
+            Self::Vec(vstring) => Box::new(vstring.into_iter().flatten()),
+            Self::Str(st) => Box::new([st].into_iter()),
+            Self::None => Box::new([].into_iter()),
         }
     }
 }
 
 pub enum MaybeString<O> {
-    str(String),
-    obj(O),
+    Str(String),
+    Obj(O),
 }
 
 pub trait MaybeStringObject {}
 
-impl MaybeStringObject for example_obj {}
+impl MaybeStringObject for ExampleInner {}
 
-impl<O: MaybeStringObject + 'static> IntoIterator for shorthand<O> {
+impl<O: MaybeStringObject + 'static> IntoIterator for MaybeStructuredText<O> {
     type Item = MaybeString<O>;
     type IntoIter = Box<dyn Iterator<Item = Self::Item>>;
     fn into_iter(self) -> Self::IntoIter {
         match self {
-            Self::obj(st) => Box::new([MaybeString::obj(st)].into_iter()),
-            Self::vec(vstring) => Box::new(vstring.into_iter().flatten().map(MaybeString::str)),
-            Self::str(st) => Box::new([MaybeString::str(st)].into_iter()),
-            Self::none => Box::new([].into_iter()),
+            Self::Object(st) => Box::new([MaybeString::Obj(st)].into_iter()),
+            Self::Vec(vstring) => Box::new(vstring.into_iter().flatten().map(MaybeString::Str)),
+            Self::Str(st) => Box::new([MaybeString::Str(st)].into_iter()),
+            Self::None => Box::new([].into_iter()),
         }
     }
 }
 
-pub type example = shorthand<example_obj>;
+pub type Example = MaybeStructuredText<ExampleInner>;
 
-pub type pronunciation = shorthand<String>;
+pub type Pronunciation = MaybeStructuredText<String>;
 
 #[derive(Serialize, Deserialize, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone)]
-pub struct example_obj {
+pub struct ExampleInner {
     pub CN: Option<String>,
     pub EN: Option<String>,
 }
 
-pub type tip = shorthand<tip_obj>;
+pub type Tip = MaybeStructuredText<TipInner>;
 
 #[derive(Serialize, Deserialize, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone)]
-pub struct tip_obj {
+pub struct TipInner {
     CN: Option<String>,
     EN: Option<String>,
 }

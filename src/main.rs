@@ -1,5 +1,6 @@
 use std::{env, path::PathBuf, thread, time::Duration};
 
+use arc_swap::ArcSwap;
 use eframe::{
     NativeOptions,
     egui::{FontData, FontDefinitions, FontFamily, FontId},
@@ -7,9 +8,9 @@ use eframe::{
 use egui_tracing::{EventCollector, Glob, tracing::collector::AllowedTargets};
 use hoverpanel::console::{console_over_ev, thread_console};
 use offdictd::{
-    self, DefItemWrapped,
-    def_bin::{Def, MaybeString, WrapperDef},
-    init_db, offdict, process_cmd, stat,
+    self, DefItemWrapped, Diverge, Offdict,
+    def_bin::{Def, Example, MaybeString, MaybeStructuredText, Pronunciation, Tip, WrapperDef},
+    init_db, process_cmd, stat,
     tests::{collect_defs, load_fixture},
     topk::Strprox,
 };
@@ -28,6 +29,8 @@ use wayland::{
 };
 
 use anyhow::{Result, anyhow};
+
+use hoverpanel::prelude::*;
 
 static START_AS_DEBUG: bool = false;
 
@@ -87,6 +90,10 @@ fn main() -> Result<()> {
 
     tracing::info!("logger set up");
 
+    let query_rx = ArcSw::from(ArcSwap::from_pointee(vec![]));
+    let dict: ArcSw<Option<Offdict<Strprox>>> = ArcSw::from(ArcSwap::from_pointee(None));
+    let dict2 = dict.clone();
+    let query_rx2 = query_rx.clone();
     let (sx, mut wayland) = WgpuLayerShellApp::new(
         opts,
         Box::new(move |ctx, sx| {
@@ -147,14 +154,19 @@ fn main() -> Result<()> {
             let defs: Vec<Def> = defs.into_iter().map(|x| x.normalize_def().into()).collect();
             let wrapped = collect_defs(defs);
 
+            let mut dict_load = Offdict::<Strprox>::open_db(db_path.clone())?;
+            dict_load.load_index(db_path)?;
+            dict.store(Some(dict_load).into());
+
             let app = HoverPanelApp {
                 ui: sx,
-                dict: None,
+                dict,
                 search: wrapped.values().map(|x| x.to_owned()).collect(),
                 status: SearchStatus::Initial,
                 stat: None,
                 eview: Some(ev),
                 debug_view: START_AS_DEBUG,
+                query: query_rx,
             };
             Ok(Box::new(app))
         }),
@@ -170,8 +182,39 @@ fn main() -> Result<()> {
                 let stx = String::from_utf8(ctx.context.context);
                 if let Ok(stx) = stx {
                     info!("select {:?}", &stx);
-                    p_sx.send(stx)?;
                     msg2.send(Msg::Repaint)?;
+                    let dict = dict2.load();
+                    if let Some(ref dict) = **dict {
+                        let dict: &Offdict<Strprox> = dict;
+                        let rx = dict.search(&stx, 5, false)?;
+                        info!("searched {} with {} results", &stx, rx.len());
+                        let new_rx = Vec::new();
+
+                        for per_word in rx {
+                            // L1: word
+                            for (dict, de) in per_word.items {
+                                let mut top = SectionTop {
+                                    title_l1: dict.to_owned(),
+                                    sections: vec![],
+                                };
+                                // L2: source dict
+                                let dict_to_word = de.word.to_owned();
+                                for (p, de) in de.definitions.into_iter().flatten().enumerate() {
+                                    // L3: defintions, may recurse
+                                    // {Depth>3} are all aggregated to {Depth=2}
+                                    let mut sec = SectionsR::default();
+                                    let ctx = LayerContext {
+                                        top: &mut top,
+                                        l2: &mut sec
+                                    };
+                                    render_def(de, ctx, 0);
+                                    top.sections.push(sec);
+                                }
+                            }
+                        }
+
+                        query_rx2.store(new_rx.into());
+                    }
                 }
             }
             anyhow::Ok(())
@@ -185,12 +228,14 @@ fn main() -> Result<()> {
 struct HoverPanelApp {
     ui: MsgQueue,
     /// allows for loading rocksdb after ui is shown
-    dict: Option<offdict<Strprox>>,
+    dict: ArcSw<Option<Offdict<Strprox>>>,
     search: Vec<DefItemWrapped>,
     status: SearchStatus,
     stat: Option<stat>,
     eview: Option<EventCollector>,
     debug_view: bool,
+    /// results from last query
+    query: ArcSw<Vec<SectionTop>>,
 }
 
 enum SearchStatus {
@@ -208,7 +253,64 @@ impl App for HoverPanelApp {
     }
 }
 
+struct SectionTop {
+    /// word string, or source name depending on grouping
+    title_l1: String,
+    sections: Vec<SectionsR>,
+}
+
+#[derive(Default)]
+struct SectionsR {
+    title_l2: Option<String>,
+    /// Expect IPA to always be present on L2
+    ipa: Option<Pronunciation>,
+    kind: Option<WordType>,
+    content: Option<SectionT>,
+}
+
+enum WordTypeID {
+    Noun,
+    Verb,
+    Adv,
+    Other,
+}
+
+struct WordType {
+    label: WordTypeID,
+    text: String,
+}
+
+enum SectionT {
+    Etymology {
+        text: MaybeStructuredText,
+    },
+    Example {
+        text: Example,
+    },
+    Tip {
+        text: Tip,
+    },
+    Explain {
+        en: MaybeStructuredText,
+        cn: MaybeStructuredText,
+    },
+    Related {
+        text: MaybeStructuredText,
+    },
+    Info {
+        text: MaybeStructuredText,
+    },
+}
+
 impl HoverPanelApp {
+    /// Must be generic to actual storage
+    fn render_items(&self, mut render: impl FnMut(&SectionTop)) {
+        let read = self.query.load();
+        for item in read.iter() {
+            render(item)
+        }
+    }
+
     fn debug_view(&self, ctx: &Context) {
         let win = ctx.available_rect();
 
@@ -268,7 +370,6 @@ impl HoverPanelApp {
 
     fn full_view(&self, ctx: &Context) {
         let win = ctx.available_rect();
-
         egui::CentralPanel::default()
             .frame(
                 egui::Frame::new().inner_margin(Margin::same(15)).fill(
@@ -304,7 +405,6 @@ impl HoverPanelApp {
                                         );
                                         ui.spacing();
                                     });
-
                                 for (dict, de) in &per_word.items {
                                     let dict_to_word = de.word.to_owned();
                                     for (p, de) in de.definitions.iter().flatten().enumerate() {
@@ -435,10 +535,10 @@ fn display(de: &Def, ui: &mut Ui, inherit: Inherited) {
                 for ex in de.examples.iter().flatten() {
                     for ex in ex.clone().into_iter() {
                         match ex {
-                            MaybeString::str(st) => {
+                            MaybeString::Str(st) => {
                                 ui.label(RichText::new(st).underline());
                             }
-                            MaybeString::obj(de) => {
+                            MaybeString::Obj(de) => {
                                 if let Some(cn) = &de.CN {
                                     ui.label(RichText::new(cn.to_owned()));
                                 }
@@ -515,10 +615,10 @@ fn display_debug(de: &Def, ui: &mut Ui, depth: u32) {
             for ex in de.examples.iter().flatten() {
                 for ex in ex.clone().into_iter() {
                     match ex {
-                        MaybeString::str(st) => {
+                        MaybeString::Str(st) => {
                             ui.label(RichText::new(st));
                         }
-                        MaybeString::obj(de) => {
+                        MaybeString::Obj(de) => {
                             if let Some(cn) = &de.CN {
                                 ui.label(RichText::new(cn.to_owned()));
                             }
@@ -548,4 +648,13 @@ fn display_debug(de: &Def, ui: &mut Ui, depth: u32) {
                 display_debug(de, ui, depth + 1);
             }
         });
+}
+
+struct LayerContext<'k> {
+    top: &'k mut SectionTop,
+    l2: &'k mut SectionsR,
+}
+
+fn render_def(de: Def, ctx: LayerContext, depth: u32) {
+    
 }

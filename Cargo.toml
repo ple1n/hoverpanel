@@ -20,6 +20,8 @@ tokio = { version = "1.47.1", features = [
     "sync",
     "signal",
 ] }
+flume-overwrite = "0.1.0"
+arc-swap = "1.7.1"
 
 [workspace.dependencies]
 metacomplete = { path = "./metacomplete", features = ["serde"] }
@@ -28,3 +30,6 @@ wayland = { package = "layer-shell-wgpu-egui", path = "./wayland-popup" }
 
 [workspace]
 members = ["offdictd", "wayland-popup"]
+
+[profile.release]
+opt-level = 3
