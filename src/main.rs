@@ -191,23 +191,22 @@ fn main() -> Result<()> {
                         let new_rx = Vec::new();
 
                         for per_word in rx {
+                            let mut top = SectionTop {
+                                title_l1: per_word.word,
+                                sections: vec![],
+                            };
                             // L1: word
                             for (dict, de) in per_word.items {
-                                let mut top = SectionTop {
-                                    title_l1: dict.to_owned(),
-                                    sections: vec![],
-                                };
-                                // L2: source dict
-                                let dict_to_word = de.word.to_owned();
                                 for (p, de) in de.definitions.into_iter().flatten().enumerate() {
                                     // L3: defintions, may recurse
                                     // {Depth>3} are all aggregated to {Depth=2}
                                     let mut sec = SectionsR::default();
-                                    let ctx = LayerContext {
+                                    sec.title_l2 = Some(dict.clone());
+                                    let mut ctx = LayerContext {
                                         top: &mut top,
-                                        l2: &mut sec
+                                        l2: &mut sec,
                                     };
-                                    render_def(de, ctx, 0);
+                                    render_def(de, &mut ctx, 0);
                                     top.sections.push(sec);
                                 }
                             }
@@ -265,7 +264,7 @@ struct SectionsR {
     /// Expect IPA to always be present on L2
     ipa: Option<Pronunciation>,
     kind: Option<WordType>,
-    content: Option<SectionT>,
+    content: Vec<SectionT>,
 }
 
 enum WordTypeID {
@@ -655,6 +654,41 @@ struct LayerContext<'k> {
     l2: &'k mut SectionsR,
 }
 
-fn render_def(de: Def, ctx: LayerContext, depth: u32) {
-    
+fn render_def(de: Def, ctx: &mut LayerContext, depth: u32) {
+    if ctx.l2.ipa.is_none() {
+        if let Some(pn) = de.pronunciation {
+            ctx.l2.ipa = Some(pn);
+        };
+    }
+    if let Some(cn) = de.etymology {
+        let et = SectionT::Etymology {
+            text: MaybeStructuredText::Vec(cn.into_iter().map(Option::Some).collect()),
+        };
+        ctx.l2.content.push(et);
+    }
+    if let Some(inf) = de.info {
+        ctx.l2.content.push(SectionT::Info {
+            text: MaybeStructuredText::Str(inf),
+        });
+    }
+    if de.CN.is_some() || de.EN.is_some() {
+        ctx.l2.content.push(SectionT::Explain {
+            en: de.EN.into(),
+            cn: de.CN.into(),
+        });
+    }
+    if let Some(ty) = de.r#type {
+        let lower = ty.to_lowercase();
+        let mut label = WordTypeID::Other;
+        if lower.contains("verb") || lower.contains("动词") {
+            label = WordTypeID::Verb;
+        }
+        if lower.contains("noun") || lower.contains("名词") {
+            label = WordTypeID::Noun;
+        }
+        ctx.l2.kind = Some(WordType { label, text: lower });
+    }
+    for de in de.definitions.into_iter().flatten() {
+        render_def(de, ctx, depth + 1);
+    }
 }

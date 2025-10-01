@@ -74,6 +74,15 @@ pub enum MaybeStructuredText<O = ()> {
     None,
 }
 
+impl From<Option<String>> for MaybeStructuredText<()> {
+    fn from(value: Option<String>) -> Self {
+        match value {
+            None => Self::None,
+            Some(s) => Self::Str(s),
+        }
+    }
+}
+
 impl IntoIterator for MaybeStructuredText<String> {
     type Item = String;
     type IntoIter = Box<dyn Iterator<Item = String>>;
