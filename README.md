@@ -1,6 +1,10 @@
 
 # Hoverpanel
 
+work in progress.
+
+![](https://github.com/user-attachments/assets/7f94c94d-a58d-44dc-a0f4-2dd725c9e705)
+
 building
 
 ```sh
