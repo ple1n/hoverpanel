@@ -204,8 +204,8 @@ impl<Ix: Indexer> offdict<Ix> {
         Self::from_db(db, path)
     }
 
-    pub fn load_index(&mut self, path: PathBuf) -> Result<()> {
-        let idx = path.join(Ix::FILE_NAME);
+    pub fn load_index(&mut self, data_path: PathBuf) -> Result<()> {
+        let idx = data_path.join(Ix::FILE_NAME);
         if idx.exists() {
             self.set = Some(Ix::load_file(&idx)?);
         }

@@ -27,7 +27,7 @@ use wayland::{
     wayland_clipboard_listener::{self, WlListenType},
 };
 
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 
 static START_AS_DEBUG: bool = false;
 
@@ -36,7 +36,11 @@ fn main() -> Result<()> {
 
     let db_path = env::current_dir()?.join("./data");
     if has_args {
-        process_cmd(|| init_db(db_path.clone()))?;
+        process_cmd(|| {
+            let db = init_db(db_path.clone())?;
+            db.load_index(db_path)?;
+            Ok(db)
+        })?;
         return Ok(());
     }
 
@@ -98,9 +102,18 @@ fn main() -> Result<()> {
                 .font_data
                 .insert("chinese".to_owned(), chinese_font_data.into());
 
-            let data = std::fs::read("/usr/share/fonts/TTF/DejaVuSansMNerdFont-Regular.ttf")?;
-            let loaded = FontData::from_owned(data);
-
+            let font_list = [
+                "/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf",
+                "/usr/share/fonts/TTF/DejaVuSansMNerdFont-Regular.ttf",
+            ];
+            let mut data = None;
+            for p in font_list {
+                match std::fs::read(p) {
+                    Ok(d) => data = Some(d),
+                    Err(_) => (),
+                }
+            }
+            let loaded = FontData::from_owned(data.ok_or(anyhow!("cannot load a font for IPA"))?);
             fonts.font_data.insert("ipa".to_owned(), loaded.into());
             fonts
                 .families
