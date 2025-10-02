@@ -2366,12 +2366,12 @@ dependencies = [
  "eframe",
  "egui_tracing",
  "flume-overwrite",
- "layer-shell-wgpu-egui",
  "offdictd",
  "tokio",
  "tracing",
  "tracing-subscriber",
  "winit",
+ "wpopup",
 ]
 
 [[package]]
@@ -2783,41 +2783,6 @@ dependencies = [
  "arrayvec",
  "euclid",
  "smallvec",
-]
-
-[[package]]
-name = "layer-shell-wgpu-egui"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-bincode",
- "bitflags 2.9.4",
- "clap",
- "crossbeam",
- "dpi",
- "egui",
- "egui-chinese-font",
- "egui-wgpu",
- "egui_extras",
- "env_logger",
- "evdev",
- "evdev-shortcut",
- "flume",
- "futures",
- "log",
- "pollster",
- "raw-window-handle",
- "serde",
- "smithay-client-toolkit 0.20.0",
- "thiserror 1.0.69",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "wayland-backend",
- "wayland-client",
- "wayland-clipboard-listener",
- "wayland-protocols-plasma",
- "wgpu",
 ]
 
 [[package]]
@@ -6389,6 +6354,41 @@ name = "wit-bindgen"
 version = "0.46.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f17a85883d4e6d00e8a97c586de764dabcc06133f7f1d55dce5cdc070ad7fe59"
+
+[[package]]
+name = "wpopup"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-bincode",
+ "bitflags 2.9.4",
+ "clap",
+ "crossbeam",
+ "dpi",
+ "egui",
+ "egui-chinese-font",
+ "egui-wgpu",
+ "egui_extras",
+ "env_logger",
+ "evdev",
+ "evdev-shortcut",
+ "flume",
+ "futures",
+ "log",
+ "pollster",
+ "raw-window-handle",
+ "serde",
+ "smithay-client-toolkit 0.20.0",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "wayland-backend",
+ "wayland-client",
+ "wayland-clipboard-listener",
+ "wayland-protocols-plasma",
+ "wgpu",
+]
 
 [[package]]
 name = "writeable"

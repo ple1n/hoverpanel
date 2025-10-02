@@ -114,7 +114,7 @@ fn main() -> Result<()> {
                 "/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf",
                 "/usr/share/fonts/TTF/DejaVuSansMNerdFont-Regular.ttf",
             ];
-            let mut data = None;
+            let mut data: Option<Vec<u8>> = None;
             for p in font_list {
                 match std::fs::read(p) {
                     Ok(d) => data = Some(d),

@@ -26,7 +26,7 @@ arc-swap = "1.7.1"
 [workspace.dependencies]
 metacomplete = { path = "./metacomplete", features = ["serde"] }
 offdictd = { path = "./offdictd" }
-wayland = { package = "layer-shell-wgpu-egui", path = "./wayland-popup" }
+wayland = { package = "wpopup", path = "./wayland-popup" }
 
 [workspace]
 members = ["offdictd", "wayland-popup"]
