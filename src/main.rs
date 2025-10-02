@@ -248,7 +248,6 @@ fn main() -> Result<()> {
                                     l2: &mut sec,
                                 };
                                 render_def(de.clone(), &mut ctx, 0);
-                                top.sections.push(sec);
                                 for (p, de) in de.definitions.into_iter().flatten().enumerate() {
                                     // L3: defintions, may recurse
                                     // {Depth>3} are all aggregated to {Depth=2}
