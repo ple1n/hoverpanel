@@ -448,6 +448,7 @@ impl HoverPanelApp {
                                                     .inner_margin(Margin {
                                                         left: 15,
                                                         bottom: 5,
+                                                        right: 15,
                                                         ..Default::default()
                                                     })
                                                     .outer_margin(Margin {
