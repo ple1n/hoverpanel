@@ -243,23 +243,18 @@ fn main() -> Result<()> {
                             for (dict, de) in per_word.items {
                                 let mut sec = SectionsR::default();
                                 sec.title_l2 = Some(dict.clone());
-                                let mut ctx = LayerContext {
+                                let mut ctx: LayerContext<'_> = LayerContext {
                                     top: &mut top,
                                     l2: &mut sec,
                                 };
                                 render_def(de.clone(), &mut ctx, 0);
+                                // top.sections.push(sec);
                                 for (p, de) in de.definitions.into_iter().flatten().enumerate() {
                                     // L3: defintions, may recurse
                                     // {Depth>3} are all aggregated to {Depth=2}
-                                    let mut sec = SectionsR::default();
-                                    sec.title_l2 = Some(dict.clone());
-                                    let mut ctx = LayerContext {
-                                        top: &mut top,
-                                        l2: &mut sec,
-                                    };
                                     render_def(de, &mut ctx, 0);
-                                    top.sections.push(sec);
                                 }
+                                top.sections.push(sec);
                             }
                             new_rx.push(top);
                         }
