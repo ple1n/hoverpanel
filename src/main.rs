@@ -1,4 +1,4 @@
-use std::{env, path::PathBuf, thread, time::Duration};
+use std::{collections::HashSet, env, path::PathBuf, thread, time::Duration};
 
 use arc_swap::ArcSwap;
 use eframe::{
@@ -313,7 +313,7 @@ struct SectionsR {
     /// Expect IPA to always be present on L2
     ipa: Option<Pronunciation>,
     kind: Option<WordType>,
-    content: Vec<SectionT>,
+    content: HashSet<SectionT>,
 }
 
 #[derive(Clone, Debug)]
@@ -331,7 +331,7 @@ struct WordType {
     text: String,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Hash, PartialEq, Eq)]
 enum SectionT {
     Etymology {
         text: MaybeStructuredText,
@@ -893,22 +893,22 @@ fn render_def(de: Def, ctx: &mut LayerContext, depth: u32) {
         let et = SectionT::Etymology {
             text: MaybeStructuredText::Vec(cn.into_iter().map(Option::Some).collect()),
         };
-        ctx.l2.content.push(et);
+        ctx.l2.content.insert(et);
     }
     if let Some(inf) = de.info {
-        ctx.l2.content.push(SectionT::Info {
+        ctx.l2.content.insert(SectionT::Info {
             text: MaybeStructuredText::Str(inf),
         });
     }
     if de.CN.is_some() || de.EN.is_some() {
-        ctx.l2.content.push(SectionT::Explain {
+        ctx.l2.content.insert(SectionT::Explain {
             en: de.EN.into(),
             cn: de.CN.into(),
         });
     }
     if let Some(exs) = de.examples {
         for ex in exs {
-            ctx.l2.content.push(SectionT::Example { text: ex });
+            ctx.l2.content.insert(SectionT::Example { text: ex });
         }
     }
     if let Some(ty) = de.r#type {
