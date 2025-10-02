@@ -198,6 +198,14 @@ fn main() -> Result<()> {
                             };
                             // L1: word
                             for (dict, de) in per_word.items {
+                                let mut sec = SectionsR::default();
+                                sec.title_l2 = Some(dict.clone());
+                                let mut ctx = LayerContext {
+                                    top: &mut top,
+                                    l2: &mut sec,
+                                };
+                                render_def(de.clone(), &mut ctx, 0);
+                                top.sections.push(sec);
                                 for (p, de) in de.definitions.into_iter().flatten().enumerate() {
                                     // L3: defintions, may recurse
                                     // {Depth>3} are all aggregated to {Depth=2}
@@ -271,7 +279,7 @@ struct SectionsR {
     content: Vec<SectionT>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 enum WordTypeID {
     Noun,
     Verb,
@@ -280,7 +288,7 @@ enum WordTypeID {
     Adj,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct WordType {
     label: WordTypeID,
     text: String,
@@ -378,17 +386,23 @@ impl HoverPanelApp {
     fn render(&self, ctx: &Context) {
         let win = ctx.available_rect();
         let mut li = Visuals::dark();
-        li.override_text_color = Some(Color32::WHITE.gamma_multiply(0.8));
+        li.override_text_color = Some(Color32::WHITE.gamma_multiply(1.));
         li.weak_text_alpha = 0.6;
         ctx.set_visuals(li);
 
         egui::CentralPanel::default()
             .frame(
-                egui::Frame::new().inner_margin(Margin::same(15)).fill(
-                    Color32::BLACK
-                        .blend(Color32::WHITE.gamma_multiply(0.2))
-                        .gamma_multiply(0.65),
-                ),
+                egui::Frame::new()
+                    .inner_margin(Margin {
+                        bottom: 10,
+                        ..Margin::same(15)
+                    })
+                    .fill(
+                        Color32::BLACK
+                            .blend(Color32::WHITE.gamma_multiply(0.2))
+                            .blend(Color32::LIGHT_YELLOW.gamma_multiply(0.1))
+                            .gamma_multiply(0.5),
+                    ),
             )
             .show(ctx, |ui| {
                 let mut st = Style::default();
@@ -411,7 +425,7 @@ impl HoverPanelApp {
                         .show(ui, |ui| {
                             self.render_items(|top| {
                                 egui::frame::Frame::new()
-                                    .fill(Color32::WHITE.gamma_multiply(0.2))
+                                    .fill(Color32::WHITE.gamma_multiply(0.08))
                                     .inner_margin(Margin::same(10))
                                     .outer_margin(Margin {
                                         left: -16,
@@ -442,6 +456,18 @@ impl HoverPanelApp {
                                                     RichText::new(word_kind.text)
                                                         .color(color.unwrap()),
                                                 );
+                                            }
+                                            if let Some(ipa) = sec2.ipa {
+                                                ui.horizontal(|ui| {
+                                                    for tn in ipa.into_iter() {
+                                                        ui.label(
+                                                            RichText::new(tn).background_color(
+                                                                Color32::LIGHT_BLUE
+                                                                    .gamma_multiply(0.35),
+                                                            ),
+                                                        );
+                                                    }
+                                                });
                                             }
                                             for sec3 in sec2.content {
                                                 egui::frame::Frame::new()
@@ -519,6 +545,7 @@ impl HoverPanelApp {
                                     });
                             });
                         });
+                    ui.add_space(10.);
                     ui.horizontal(|ui| {
                         if ui.button("exit").clicked() {
                             self.ui.send(Msg::Exit).unwrap();
@@ -821,11 +848,10 @@ struct LayerContext<'k> {
 }
 
 fn render_def(de: Def, ctx: &mut LayerContext, depth: u32) {
-    if ctx.l2.ipa.is_none() {
-        if let Some(pn) = de.pronunciation {
-            ctx.l2.ipa = Some(pn);
-        };
-    }
+    if let Some(pn) = de.pronunciation {
+        info!("pronunciation {:?} {:?}", &de.word, &ctx.l2.kind);
+        ctx.l2.ipa = Some(pn);
+    };
     if let Some(cn) = de.etymology {
         let et = SectionT::Etymology {
             text: MaybeStructuredText::Vec(cn.into_iter().map(Option::Some).collect()),
@@ -842,6 +868,11 @@ fn render_def(de: Def, ctx: &mut LayerContext, depth: u32) {
             en: de.EN.into(),
             cn: de.CN.into(),
         });
+    }
+    if let Some(exs) = de.examples {
+        for ex in exs {
+            ctx.l2.content.push(SectionT::Example { text: ex });
+        }
     }
     if let Some(ty) = de.r#type {
         let lower = ty.to_lowercase();
