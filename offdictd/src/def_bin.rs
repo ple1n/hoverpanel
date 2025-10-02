@@ -104,6 +104,20 @@ pub enum MaybeString<O> {
 pub trait MaybeStringObject {}
 
 impl MaybeStringObject for ExampleInner {}
+impl MaybeStringObject for TipInner {}
+
+impl IntoIterator for MaybeStructuredText<()> {
+    type Item = String;
+    type IntoIter = Box<dyn Iterator<Item = Self::Item>>;
+    fn into_iter(self) -> Self::IntoIter {
+        match self {
+            Self::Object(st) => Box::new([].into_iter()),
+            Self::Vec(vstring) => Box::new(vstring.into_iter().flatten()),
+            Self::Str(st) => Box::new([st].into_iter()),
+            Self::None => Box::new([].into_iter()),
+        }
+    }
+}
 
 impl<O: MaybeStringObject + 'static> IntoIterator for MaybeStructuredText<O> {
     type Item = MaybeString<O>;
@@ -132,8 +146,8 @@ pub type Tip = MaybeStructuredText<TipInner>;
 
 #[derive(Serialize, Deserialize, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct TipInner {
-    CN: Option<String>,
-    EN: Option<String>,
+    pub CN: Option<String>,
+    pub EN: Option<String>,
 }
 
 impl From<super::SrcDef> for Def {

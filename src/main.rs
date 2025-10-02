@@ -3,7 +3,7 @@ use std::{env, path::PathBuf, thread, time::Duration};
 use arc_swap::ArcSwap;
 use eframe::{
     NativeOptions,
-    egui::{FontData, FontDefinitions, FontFamily, FontId},
+    egui::{FontData, FontDefinitions, FontFamily, FontId, Style},
 };
 use egui_tracing::{EventCollector, Glob, tracing::collector::AllowedTargets};
 use hoverpanel::console::{console_over_ev, thread_console};
@@ -98,7 +98,8 @@ fn main() -> Result<()> {
         opts,
         Box::new(move |ctx, sx| {
             let mut li = Visuals::dark();
-            li.override_text_color = Some(Color32::WHITE.gamma_multiply(0.8));
+            li.override_text_color = Some(Color32::WHITE.gamma_multiply(1.));
+            li.weak_text_alpha = 0.9;
             ctx.set_visuals(li);
 
             let mut fonts = FontDefinitions::default();
@@ -188,7 +189,7 @@ fn main() -> Result<()> {
                         let dict: &Offdict<Strprox> = dict;
                         let rx = dict.search(&stx, 5, false)?;
                         info!("searched {} with {} results", &stx, rx.len());
-                        let new_rx = Vec::new();
+                        let mut new_rx = Vec::new();
 
                         for per_word in rx {
                             let mut top = SectionTop {
@@ -210,9 +211,11 @@ fn main() -> Result<()> {
                                     top.sections.push(sec);
                                 }
                             }
+                            new_rx.push(top);
                         }
 
                         query_rx2.store(new_rx.into());
+                        msg2.send(Msg::Repaint)?;
                     }
                 }
             }
@@ -247,18 +250,19 @@ impl App for HoverPanelApp {
         if self.debug_view {
             self.debug_view(ctx);
         } else {
-            self.full_view(ctx);
+            self.render(ctx);
         }
     }
 }
 
+#[derive(Clone)]
 struct SectionTop {
     /// word string, or source name depending on grouping
     title_l1: String,
     sections: Vec<SectionsR>,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 struct SectionsR {
     title_l2: Option<String>,
     /// Expect IPA to always be present on L2
@@ -267,18 +271,22 @@ struct SectionsR {
     content: Vec<SectionT>,
 }
 
+#[derive(Clone)]
 enum WordTypeID {
     Noun,
     Verb,
     Adv,
     Other,
+    Adj,
 }
 
+#[derive(Clone)]
 struct WordType {
     label: WordTypeID,
     text: String,
 }
 
+#[derive(Clone)]
 enum SectionT {
     Etymology {
         text: MaybeStructuredText,
@@ -303,9 +311,9 @@ enum SectionT {
 
 impl HoverPanelApp {
     /// Must be generic to actual storage
-    fn render_items(&self, mut render: impl FnMut(&SectionTop)) {
+    fn render_items(&self, mut render: impl FnMut(SectionTop)) {
         let read = self.query.load();
-        for item in read.iter() {
+        for item in read.iter().map(|k| k.clone()).into_iter() {
             render(item)
         }
     }
@@ -365,6 +373,163 @@ impl HoverPanelApp {
                     ui.add(egui_tracing::Logs::new(ev.clone()));
                 });
         }
+    }
+
+    fn render(&self, ctx: &Context) {
+        let win = ctx.available_rect();
+        let mut li = Visuals::dark();
+        li.override_text_color = Some(Color32::WHITE.gamma_multiply(0.8));
+        li.weak_text_alpha = 0.6;
+        ctx.set_visuals(li);
+
+        egui::CentralPanel::default()
+            .frame(
+                egui::Frame::new().inner_margin(Margin::same(15)).fill(
+                    Color32::BLACK
+                        .blend(Color32::WHITE.gamma_multiply(0.2))
+                        .gamma_multiply(0.65),
+                ),
+            )
+            .show(ctx, |ui| {
+                let mut st = Style::default();
+                st.text_styles.insert(
+                    egui::TextStyle::Body,
+                    FontId {
+                        size: 18.,
+                        family: FontFamily::Proportional,
+                    },
+                );
+                ctx.set_style(st);
+                let h = ui.available_height() - 30.;
+                ui.vertical(|ui| {
+                    ui.set_height(h);
+                    ui.set_width(win.width());
+                    scroll_area::ScrollArea::vertical()
+                        .scroll_bar_visibility(scroll_area::ScrollBarVisibility::VisibleWhenNeeded)
+                        .wheel_scroll_multiplier(Vec2::new(1., 15.))
+                        .auto_shrink([false, false])
+                        .show(ui, |ui| {
+                            self.render_items(|top| {
+                                egui::frame::Frame::new()
+                                    .fill(Color32::WHITE.gamma_multiply(0.2))
+                                    .inner_margin(Margin::same(10))
+                                    .outer_margin(Margin {
+                                        left: -16,
+                                        right: 0,
+                                        top: 15,
+                                        bottom: 0,
+                                    })
+                                    .show(ui, |ui| {
+                                        ui.set_width(win.width());
+                                        ui.label(RichText::new(top.title_l1).color(Color32::WHITE));
+                                        ui.spacing();
+
+                                        for sec2 in top.sections {
+                                            let mut color = None;
+                                            if let Some(word_kind) = sec2.kind {
+                                                color = Some(
+                                                    match word_kind.label {
+                                                        WordTypeID::Noun => Color32::ORANGE,
+                                                        WordTypeID::Verb => Color32::LIGHT_BLUE,
+                                                        WordTypeID::Adv => Color32::LIGHT_GREEN,
+                                                        WordTypeID::Other => Color32::WHITE,
+                                                        WordTypeID::Adj => Color32::YELLOW,
+                                                    }
+                                                    .blend(Color32::GRAY.gamma_multiply(0.2))
+                                                    .blend(Color32::WHITE.gamma_multiply(0.5)),
+                                                );
+                                                ui.label(
+                                                    RichText::new(word_kind.text)
+                                                        .color(color.unwrap()),
+                                                );
+                                            }
+                                            for sec3 in sec2.content {
+                                                egui::frame::Frame::new()
+                                                    .inner_margin(Margin {
+                                                        left: 15,
+                                                        bottom: 5,
+                                                        ..Default::default()
+                                                    })
+                                                    .outer_margin(Margin {
+                                                        left: 0,
+                                                        right: 0,
+                                                        top: 0,
+                                                        bottom: 0,
+                                                    })
+                                                    .show(ui, |ui| match sec3 {
+                                                        SectionT::Explain { en, cn } => {
+                                                            for tn in en.into_iter() {
+                                                                ui.label(tn);
+                                                            }
+                                                            for tn in cn.into_iter() {
+                                                                ui.label(tn);
+                                                            }
+                                                        }
+                                                        SectionT::Example { text } => {
+                                                            for tn in text.into_iter() {
+                                                                match tn {
+                                                                    MaybeString::Str(tn) => {
+                                                                        ui.label(tn);
+                                                                    }
+                                                                    MaybeString::Obj(ex) => {
+                                                                        if let Some(tn) = ex.EN {
+                                                                            ui.label(
+                                                                                RichText::new(tn)
+                                                                                    .color(
+                                                                                    Color32::WHITE,
+                                                                                ),
+                                                                            );
+                                                                        }
+                                                                        if let Some(tn) = ex.CN {
+                                                                            ui.label(tn);
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                        SectionT::Etymology { text } => {
+                                                            for tn in text.into_iter() {
+                                                                ui.label(tn);
+                                                            }
+                                                        }
+                                                        SectionT::Tip { text } => {
+                                                            for tn in text.into_iter() {
+                                                                match tn {
+                                                                    MaybeString::Str(tn) => {
+                                                                        ui.label(tn);
+                                                                    }
+                                                                    MaybeString::Obj(ex) => {
+                                                                        if let Some(tn) = ex.EN {
+                                                                            ui.label(
+                                                                                RichText::new(tn),
+                                                                            );
+                                                                        }
+                                                                        if let Some(tn) = ex.CN {
+                                                                            ui.label(tn);
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                        _ => {}
+                                                    });
+                                            }
+                                        }
+                                    });
+                            });
+                        });
+                    ui.horizontal(|ui| {
+                        if ui.button("exit").clicked() {
+                            self.ui.send(Msg::Exit).unwrap();
+                            ctx.request_repaint();
+                        }
+                        if ui.button("hide").clicked() {
+                            self.ui.send(Msg::Hide(true)).unwrap();
+                            ctx.request_repaint();
+                        }
+                    });
+                })
+            });
     }
 
     fn full_view(&self, ctx: &Context) {
@@ -680,11 +845,22 @@ fn render_def(de: Def, ctx: &mut LayerContext, depth: u32) {
     if let Some(ty) = de.r#type {
         let lower = ty.to_lowercase();
         let mut label = WordTypeID::Other;
-        if lower.contains("verb") || lower.contains("动词") {
+        if lower.contains("verb")
+            || lower.contains("动词")
+            || lower.contains("v.")
+            || lower.contains("vt.")
+            || lower.contains("vi.")
+        {
             label = WordTypeID::Verb;
         }
-        if lower.contains("noun") || lower.contains("名词") {
+        if lower.contains("noun") || lower.contains("n.") || lower.contains("名词") {
             label = WordTypeID::Noun;
+        }
+        if lower.contains("adj") || lower.contains("adj.") || lower.contains("形容词") {
+            label = WordTypeID::Adj;
+        }
+        if lower.contains("adv") || lower.contains("副词") {
+            label = WordTypeID::Adv;
         }
         ctx.l2.kind = Some(WordType { label, text: lower });
     }
