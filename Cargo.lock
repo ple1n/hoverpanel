@@ -2366,6 +2366,7 @@ dependencies = [
  "eframe",
  "egui_tracing",
  "flume-overwrite",
+ "futures",
  "offdictd",
  "tokio",
  "tracing",

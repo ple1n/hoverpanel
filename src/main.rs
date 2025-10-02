@@ -14,16 +14,18 @@ use offdictd::{
     tests::{collect_defs, load_fixture},
     topk::Strprox,
 };
-use tokio::sync::watch;
+use tokio::{net::UnixStream, sync::watch};
 use tracing::{Level, info, level_filters::LevelFilter};
 use tracing_subscriber::{filter::targets, layer::SubscriberExt, util::SubscriberInitExt};
 use wayland::{
     self, App,
     application::{Msg, MsgQueue, WgpuLayerShellApp},
+    async_bincode::{self, futures::AsyncBincodeStream},
     egui::{self, Color32, Context, Margin, RichText, Ui, Vec2, Visuals, scroll_area},
     egui_chinese_font::{self, load_chinese_font},
     errors::wrap_noncritical_sync,
     layer_shell::{Anchor, KeyboardInteractivity, Layer, LayerShellOptions},
+    proto::{DEFAULT_SERVE_PATH, KeyCode, Kind, ProtoGesture, TapDist},
     run_layer,
     wayland_clipboard_listener::{self, WlListenType},
 };
@@ -174,6 +176,47 @@ fn main() -> Result<()> {
     );
 
     let msg2 = sx.clone();
+    let msg3 = sx.clone();
+    use futures::StreamExt;
+    use wayland::async_bincode::tokio::*;
+    std::thread::spawn(move || {
+        wrap_noncritical_sync(|| {
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_io()
+                .build()?;
+            rt.block_on(async move {
+                let conn = UnixStream::connect(DEFAULT_SERVE_PATH).await?;
+                let mut fm: AsyncBincodeStream<
+                    tokio::net::UnixStream,
+                    ProtoGesture,
+                    ProtoGesture,
+                    async_bincode::AsyncDestination,
+                > = AsyncBincodeStream::from(conn).for_async();
+
+                loop {
+                    let k = fm.next().await;
+                    if let Some(ges) = k {
+                        let ges = ges?;
+                        if ges.key == KeyCode::KEY_LEFTCTRL {
+                            match ges.kind {
+                                Kind::Taps(TapDist::First(_)) => {
+                                    msg3.send(Msg::Toggle)?;
+                                }
+                                Kind::Taps(TapDist::Seq(_)) => {
+                                    // msg3.send(Msg::Toggle)?;
+                                }
+                                _ => {}
+                            }
+                        }
+                        info!(?ges);
+                    }
+                }
+                aok(())
+            })?;
+            aok(())
+        });
+    });
+
     std::thread::spawn(move || {
         wrap_noncritical_sync(|| {
             let mut lis = wayland_clipboard_listener::WlClipboardPasteStream::init(
