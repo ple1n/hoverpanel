@@ -61,8 +61,6 @@ fn main() -> Result<()> {
         ..Default::default()
     };
 
-    let (p_sx, p_rx) = watch::channel("selection".to_owned());
-
     let mut targets: Vec<String> = ["naga"].iter().map(|k| (*k).to_owned()).collect();
     targets.clear();
 
@@ -270,7 +268,6 @@ fn main() -> Result<()> {
                                 _ => {}
                             }
                         }
-                        info!(?ges);
                     }
                 }
                 aok(())
