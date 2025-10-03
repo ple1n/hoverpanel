@@ -3,7 +3,7 @@ use std::{collections::HashSet, env, path::PathBuf, thread, time::Duration};
 use arc_swap::ArcSwap;
 use eframe::{
     NativeOptions,
-    egui::{FontData, FontDefinitions, FontFamily, FontId, Style},
+    egui::{FontData, FontDefinitions, FontFamily, FontId, Style, TextEdit, Widget, frame},
 };
 use egui_tracing::{EventCollector, Glob, tracing::collector::AllowedTargets};
 use hoverpanel::console::{console_over_ev, thread_console};
@@ -170,6 +170,7 @@ fn main() -> Result<()> {
                 eview: Some(ev),
                 debug_view: START_AS_DEBUG,
                 query: query_rx,
+                text: String::new(),
             };
             Ok(Box::new(app))
         }),
@@ -290,6 +291,8 @@ struct HoverPanelApp {
     debug_view: bool,
     /// results from last query
     query: ArcSw<Vec<SectionTop>>,
+    /// current input
+    text: String,
 }
 
 enum SearchStatus {
@@ -427,7 +430,7 @@ impl HoverPanelApp {
         }
     }
 
-    fn render(&self, ctx: &Context) {
+    fn render(&mut self, ctx: &Context) {
         let win = ctx.available_rect();
         let mut li = Visuals::dark();
         li.override_text_color = Some(Color32::WHITE.gamma_multiply(1.));
@@ -438,7 +441,7 @@ impl HoverPanelApp {
             .frame(
                 egui::Frame::new()
                     .inner_margin(Margin {
-                        bottom: 10,
+                        bottom: 4,
                         ..Margin::same(15)
                     })
                     .fill(
@@ -514,22 +517,34 @@ impl HoverPanelApp {
                                                 });
                                             }
                                             for sec3 in sec2.content {
-                                                info!("{:?}", &sec3);
                                                 self.show_section_t(sec3, ui);
                                             }
                                         }
                                     });
                             });
                         });
-                    ui.add_space(10.);
+                    ui.add_space(4.);
                     ui.horizontal(|ui| {
-                        if ui.button("exit").clicked() {
-                            self.ui.send(Msg::Exit).unwrap();
-                            ctx.request_repaint();
+                        let text = TextEdit::singleline(&mut self.text)
+                            .background_color(Color32::BLACK.gamma_multiply(0.2))
+                            .vertical_align(egui::Align::Center)
+                            .desired_width(220.)
+                            .ui(ui);
+                        if text.changed() {
+                            info!("input = {}", self.text);
                         }
-                        if ui.button("hide").clicked() {
-                            self.ui.send(Msg::Hide(true)).unwrap();
-                            ctx.request_repaint();
+                        if true {
+                            if ui.button("exit").clicked() {
+                                self.ui.send(Msg::Exit).unwrap();
+                                ctx.request_repaint();
+                            }
+                            if ui.button("hide").clicked() {
+                                self.ui.send(Msg::Hide(true)).unwrap();
+                                ctx.request_repaint();
+                            }
+                            if ui.button("dev").clicked() {
+                                // todo
+                            }
                         }
                     });
                 })
