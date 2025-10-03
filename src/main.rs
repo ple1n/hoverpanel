@@ -326,7 +326,7 @@ struct SectionsR {
     /// Expect IPA to always be present on L2
     ipa: Option<Pronunciation>,
     kind: Option<WordType>,
-    content: HashSet<SectionT>,
+    content: Vec<SectionT>,
 }
 
 #[derive(Clone, Debug)]
@@ -897,6 +897,19 @@ struct LayerContext<'k> {
     l2: &'k mut SectionsR,
 }
 
+
+trait VecExt<T> {
+    fn push_dedup(&mut self, last: T);
+}
+
+impl<T: Eq> VecExt<T> for Vec<T> {
+    fn push_dedup(&mut self, last: T) {
+        if self.last() != Some(&last) {
+            self.push(last);
+        }
+    }
+}
+
 fn render_def(de: Def, ctx: &mut LayerContext, depth: u32) {
     if let Some(pn) = de.pronunciation {
         info!("pronunciation {:?} {:?}", &de.word, &ctx.l2.kind);
@@ -906,22 +919,22 @@ fn render_def(de: Def, ctx: &mut LayerContext, depth: u32) {
         let et = SectionT::Etymology {
             text: MaybeStructuredText::Vec(cn.into_iter().map(Option::Some).collect()),
         };
-        ctx.l2.content.insert(et);
+        ctx.l2.content.push_dedup(et);
     }
     if let Some(inf) = de.info {
-        ctx.l2.content.insert(SectionT::Info {
+        ctx.l2.content.push_dedup(SectionT::Info {
             text: MaybeStructuredText::Str(inf),
         });
     }
     if de.CN.is_some() || de.EN.is_some() {
-        ctx.l2.content.insert(SectionT::Explain {
+        ctx.l2.content.push_dedup(SectionT::Explain {
             en: de.EN.into(),
             cn: de.CN.into(),
         });
     }
     if let Some(exs) = de.examples {
         for ex in exs {
-            ctx.l2.content.insert(SectionT::Example { text: ex });
+            ctx.l2.content.push_dedup(SectionT::Example { text: ex });
         }
     }
     if let Some(ty) = de.r#type {
