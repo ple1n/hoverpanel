@@ -192,7 +192,7 @@ fn main() -> Result<()> {
                     ProtoGesture,
                     async_bincode::AsyncDestination,
                 > = AsyncBincodeStream::from(conn).for_async();
-
+                let mut tap_count = 0;
                 loop {
                     let k = fm.next().await;
                     if let Some(ges) = k {
@@ -200,10 +200,14 @@ fn main() -> Result<()> {
                         if ges.key == KeyCode::KEY_LEFTCTRL {
                             match ges.kind {
                                 Kind::Taps(TapDist::First(_)) => {
+                                    tap_count = 0;
                                     msg3.send(Msg::Toggle)?;
                                 }
                                 Kind::Taps(TapDist::Seq(_)) => {
-                                    // msg3.send(Msg::Toggle)?;
+                                    tap_count += 1;
+                                    if tap_count % 2 == 0 {
+                                        msg3.send(Msg::Toggle)?;
+                                    }
                                 }
                                 _ => {}
                             }
@@ -222,10 +226,18 @@ fn main() -> Result<()> {
             let mut lis = wayland_clipboard_listener::WlClipboardPasteStream::init(
                 WlListenType::ListenOnSelect,
             )?;
+            let mut last_string = None;
             for ctx in lis.paste_stream().flatten() {
                 let stx = String::from_utf8(ctx.context.context);
                 if let Ok(stx) = stx {
                     info!("select {:?}", &stx);
+                    if last_string
+                        .as_ref()
+                        .map(|k: &String| k.as_str() == stx.as_str())
+                        .unwrap_or_default()
+                    {
+                        continue;
+                    }
                     msg2.send(Msg::Repaint)?;
                     let dict = dict2.load();
                     if let Some(ref dict) = **dict {
@@ -261,6 +273,7 @@ fn main() -> Result<()> {
 
                         query_rx2.store(new_rx.into());
                         msg2.send(Msg::Repaint)?;
+                        last_string = Some(stx);
                     }
                 }
             }
