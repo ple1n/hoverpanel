@@ -165,7 +165,7 @@ fn main() -> Result<()> {
             let mut dict_load = Offdict::<Strprox>::open_db(db_path.clone())?;
             dict_load.load_index(db_path)?;
             dict.store(Some(dict_load).into());
-
+            
             let app = HoverPanelApp {
                 ui: sx,
                 dict,
@@ -181,7 +181,7 @@ fn main() -> Result<()> {
             Ok(Box::new(app))
         }),
     );
-
+    
     let msg2 = sx.clone();
     let msg3 = sx.clone();
     use futures::StreamExt;

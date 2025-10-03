@@ -39,3 +39,8 @@ fonts
 ```sh
 dnf install google-droid-fonts dejavusansmono-nerd-fonts # fedora
 ```
+
+## Known bugs
+
+- IME works sometimes and sometimes not. The state handling of wayland is probably faulty.
+- XWayland causes mouse input to offset by 4 pixels, when an Xwayland window is below hoverpanel.
