@@ -259,16 +259,10 @@ fn main() -> Result<()> {
                                     top: &mut top,
                                     l2: &mut sec,
                                 };
-                                render_def(de.clone(), &mut ctx, 0);
-                                // top.sections.push(sec);
-                                for (p, de) in de.definitions.into_iter().flatten().enumerate() {
-                                    // L3: defintions, may recurse
-                                    // {Depth>3} are all aggregated to {Depth=2}
-                                    render_def(de, &mut ctx, 0);
-                                }
-                                top.sections.push(sec);
+                                render_def(de, &mut ctx, 0);
+                                top.sections.push_dedup(sec);
                             }
-                            new_rx.push(top);
+                            new_rx.push_dedup(top);
                         }
 
                         query_rx2.store(new_rx.into());
@@ -313,14 +307,14 @@ impl App for HoverPanelApp {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 struct SectionTop {
     /// word string, or source name depending on grouping
     title_l1: String,
     sections: Vec<SectionsR>,
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, PartialEq, Eq)]
 struct SectionsR {
     title_l2: Option<String>,
     /// Expect IPA to always be present on L2
@@ -329,7 +323,7 @@ struct SectionsR {
     content: Vec<SectionT>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum WordTypeID {
     Noun,
     Verb,
@@ -338,13 +332,13 @@ enum WordTypeID {
     Adj,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct WordType {
     label: WordTypeID,
     text: String,
 }
 
-#[derive(Clone, Hash, PartialEq, Eq)]
+#[derive(Clone, Hash, PartialEq, Eq, Debug)]
 enum SectionT {
     Etymology {
         text: MaybeStructuredText,
@@ -520,76 +514,8 @@ impl HoverPanelApp {
                                                 });
                                             }
                                             for sec3 in sec2.content {
-                                                egui::frame::Frame::new()
-                                                    .inner_margin(Margin {
-                                                        left: 15,
-                                                        bottom: 5,
-                                                        right: 15,
-                                                        ..Default::default()
-                                                    })
-                                                    .outer_margin(Margin {
-                                                        left: 0,
-                                                        right: 0,
-                                                        top: 0,
-                                                        bottom: 0,
-                                                    })
-                                                    .show(ui, |ui| match sec3 {
-                                                        SectionT::Explain { en, cn } => {
-                                                            for tn in en.into_iter() {
-                                                                ui.label(tn);
-                                                            }
-                                                            for tn in cn.into_iter() {
-                                                                ui.label(tn);
-                                                            }
-                                                        }
-                                                        SectionT::Example { text } => {
-                                                            for tn in text.into_iter() {
-                                                                match tn {
-                                                                    MaybeString::Str(tn) => {
-                                                                        ui.label(tn);
-                                                                    }
-                                                                    MaybeString::Obj(ex) => {
-                                                                        if let Some(tn) = ex.EN {
-                                                                            ui.label(
-                                                                                RichText::new(tn)
-                                                                                    .color(
-                                                                                    Color32::WHITE,
-                                                                                ),
-                                                                            );
-                                                                        }
-                                                                        if let Some(tn) = ex.CN {
-                                                                            ui.label(tn);
-                                                                        }
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                        SectionT::Etymology { text } => {
-                                                            for tn in text.into_iter() {
-                                                                ui.label(tn);
-                                                            }
-                                                        }
-                                                        SectionT::Tip { text } => {
-                                                            for tn in text.into_iter() {
-                                                                match tn {
-                                                                    MaybeString::Str(tn) => {
-                                                                        ui.label(tn);
-                                                                    }
-                                                                    MaybeString::Obj(ex) => {
-                                                                        if let Some(tn) = ex.EN {
-                                                                            ui.label(
-                                                                                RichText::new(tn),
-                                                                            );
-                                                                        }
-                                                                        if let Some(tn) = ex.CN {
-                                                                            ui.label(tn);
-                                                                        }
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                        _ => {}
-                                                    });
+                                                info!("{:?}", &sec3);
+                                                self.show_section_t(sec3, ui);
                                             }
                                         }
                                     });
@@ -607,6 +533,78 @@ impl HoverPanelApp {
                         }
                     });
                 })
+            });
+    }
+
+    fn show_section_t(&self, sec3: SectionT, ui: &mut Ui) {
+        egui::frame::Frame::new()
+            .inner_margin(Margin {
+                left: 15,
+                bottom: 5,
+                right: 15,
+                ..Default::default()
+            })
+            .outer_margin(Margin {
+                left: 0,
+                right: 0,
+                top: 0,
+                bottom: 0,
+            })
+            .show(ui, |ui| match sec3 {
+                SectionT::Explain { en, cn } => {
+                    for tn in en.into_iter() {
+                        ui.label(RichText::new(tn));
+                    }
+                    for tn in cn.into_iter() {
+                        ui.label(RichText::new(tn));
+                    }
+                }
+                SectionT::Example { text } => {
+                    for tn in text.into_iter() {
+                        match tn {
+                            MaybeString::Str(tn) => {
+                                ui.label(
+                                    RichText::new(tn).color(Color32::WHITE.gamma_multiply(0.8)),
+                                );
+                            }
+                            MaybeString::Obj(ex) => {
+                                if let Some(tn) = ex.EN {
+                                    ui.label(
+                                        RichText::new(tn).color(Color32::WHITE.gamma_multiply(0.8)),
+                                    );
+                                }
+                                if let Some(tn) = ex.CN {
+                                    ui.label(
+                                        RichText::new(tn).color(Color32::WHITE.gamma_multiply(0.8)),
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+                SectionT::Etymology { text } => {
+                    for tn in text.into_iter() {
+                        ui.label(tn);
+                    }
+                }
+                SectionT::Tip { text } => {
+                    for tn in text.into_iter() {
+                        match tn {
+                            MaybeString::Str(tn) => {
+                                ui.label(tn);
+                            }
+                            MaybeString::Obj(ex) => {
+                                if let Some(tn) = ex.EN {
+                                    ui.label(RichText::new(tn));
+                                }
+                                if let Some(tn) = ex.CN {
+                                    ui.label(tn);
+                                }
+                            }
+                        }
+                    }
+                }
+                _ => {}
             });
     }
 
@@ -896,7 +894,6 @@ struct LayerContext<'k> {
     top: &'k mut SectionTop,
     l2: &'k mut SectionsR,
 }
-
 
 trait VecExt<T> {
     fn push_dedup(&mut self, last: T);
