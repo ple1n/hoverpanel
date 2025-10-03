@@ -14,7 +14,10 @@ use offdictd::{
     tests::{collect_defs, load_fixture},
     topk::Strprox,
 };
-use tokio::{net::UnixStream, sync::watch};
+use tokio::{
+    net::UnixStream,
+    sync::{mpsc, watch},
+};
 use tracing::{Level, info, level_filters::LevelFilter};
 use tracing_subscriber::{filter::targets, layer::SubscriberExt, util::SubscriberInitExt};
 use wayland::{
@@ -180,11 +183,63 @@ fn main() -> Result<()> {
     let msg3 = sx.clone();
     use futures::StreamExt;
     use wayland::async_bincode::tokio::*;
+    let (wsx, mut wrx) = mpsc::unbounded_channel::<String>();
+
     std::thread::spawn(move || {
         wrap_noncritical_sync(|| {
             let rt = tokio::runtime::Builder::new_current_thread()
                 .enable_io()
                 .build()?;
+            // the thread for word lookup
+            rt.spawn(async move {
+                let mut last_string = None;
+                loop {
+                    if let Some(stx) = wrx.recv().await {
+                        info!("query {:?}", &stx);
+                        if last_string
+                            .as_ref()
+                            .map(|k: &String| k.as_str() == stx.as_str())
+                            .unwrap_or_default()
+                        {
+                            continue;
+                        }
+                        msg2.send(Msg::Repaint)?;
+                        let dict = dict2.load();
+                        if let Some(ref dict) = **dict {
+                            let dict: &Offdict<Strprox> = dict;
+                            let rx = dict.search(&stx, 5, false)?;
+                            info!("searched {} with {} results", &stx, rx.len());
+                            let mut new_rx = Vec::new();
+
+                            for per_word in rx {
+                                let mut top = SectionTop {
+                                    title_l1: per_word.word,
+                                    sections: vec![],
+                                };
+                                // L1: word
+                                for (dict, de) in per_word.items {
+                                    let mut sec = SectionsR::default();
+                                    sec.title_l2 = Some(dict.clone());
+                                    let mut ctx: LayerContext<'_> = LayerContext {
+                                        top: &mut top,
+                                        l2: &mut sec,
+                                    };
+                                    render_def(de, &mut ctx, 0);
+                                    top.sections.push_dedup(sec);
+                                }
+                                new_rx.push_dedup(top);
+                            }
+
+                            query_rx2.store(new_rx.into());
+                            msg2.send(Msg::Repaint)?;
+                            last_string = Some(stx);
+                        }
+                    } else {
+                        break;
+                    }
+                }
+                anyhow::Ok(())
+            });
             rt.block_on(async move {
                 let conn = UnixStream::connect(DEFAULT_SERVE_PATH).await?;
                 let mut fm: AsyncBincodeStream<
@@ -227,49 +282,11 @@ fn main() -> Result<()> {
             let mut lis = wayland_clipboard_listener::WlClipboardPasteStream::init(
                 WlListenType::ListenOnSelect,
             )?;
-            let mut last_string = None;
             for ctx in lis.paste_stream().flatten() {
                 let stx = String::from_utf8(ctx.context.context);
                 if let Ok(stx) = stx {
                     info!("select {:?}", &stx);
-                    if last_string
-                        .as_ref()
-                        .map(|k: &String| k.as_str() == stx.as_str())
-                        .unwrap_or_default()
-                    {
-                        continue;
-                    }
-                    msg2.send(Msg::Repaint)?;
-                    let dict = dict2.load();
-                    if let Some(ref dict) = **dict {
-                        let dict: &Offdict<Strprox> = dict;
-                        let rx = dict.search(&stx, 5, false)?;
-                        info!("searched {} with {} results", &stx, rx.len());
-                        let mut new_rx = Vec::new();
-
-                        for per_word in rx {
-                            let mut top = SectionTop {
-                                title_l1: per_word.word,
-                                sections: vec![],
-                            };
-                            // L1: word
-                            for (dict, de) in per_word.items {
-                                let mut sec = SectionsR::default();
-                                sec.title_l2 = Some(dict.clone());
-                                let mut ctx: LayerContext<'_> = LayerContext {
-                                    top: &mut top,
-                                    l2: &mut sec,
-                                };
-                                render_def(de, &mut ctx, 0);
-                                top.sections.push_dedup(sec);
-                            }
-                            new_rx.push_dedup(top);
-                        }
-
-                        query_rx2.store(new_rx.into());
-                        msg2.send(Msg::Repaint)?;
-                        last_string = Some(stx);
-                    }
+                    wsx.send(stx)?;                    
                 }
             }
             anyhow::Ok(())
