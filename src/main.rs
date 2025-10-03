@@ -16,7 +16,7 @@ use offdictd::{
 };
 use tokio::{
     net::UnixStream,
-    sync::{mpsc, watch},
+    sync::{mpsc::{self, UnboundedSender}, watch},
 };
 use tracing::{Level, info, level_filters::LevelFilter};
 use tracing_subscriber::{filter::targets, layer::SubscriberExt, util::SubscriberInitExt};
@@ -99,6 +99,8 @@ fn main() -> Result<()> {
     let dict: ArcSw<Option<Offdict<Strprox>>> = ArcSw::from(ArcSwap::from_pointee(None));
     let dict2 = dict.clone();
     let query_rx2 = query_rx.clone();
+    let (wsx, mut wrx) = mpsc::unbounded_channel::<String>();
+    let wsx2 = wsx.clone();
     let (sx, mut wayland) = WgpuLayerShellApp::new(
         opts,
         Box::new(move |ctx, sx| {
@@ -174,6 +176,7 @@ fn main() -> Result<()> {
                 debug_view: START_AS_DEBUG,
                 query: query_rx,
                 text: String::new(),
+                wsx: wsx2
             };
             Ok(Box::new(app))
         }),
@@ -183,7 +186,6 @@ fn main() -> Result<()> {
     let msg3 = sx.clone();
     use futures::StreamExt;
     use wayland::async_bincode::tokio::*;
-    let (wsx, mut wrx) = mpsc::unbounded_channel::<String>();
 
     std::thread::spawn(move || {
         wrap_noncritical_sync(|| {
@@ -310,6 +312,7 @@ struct HoverPanelApp {
     query: ArcSw<Vec<SectionTop>>,
     /// current input
     text: String,
+    wsx: UnboundedSender<String>
 }
 
 enum SearchStatus {
@@ -549,6 +552,7 @@ impl HoverPanelApp {
                             .ui(ui);
                         if text.changed() {
                             info!("input = {}", self.text);
+                            let _ = self.wsx.send(self.text.clone());
                         }
                         if true {
                             if ui.button("exit").clicked() {
