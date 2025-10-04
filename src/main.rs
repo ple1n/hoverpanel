@@ -1,3 +1,5 @@
+#![allow(unreachable_code)]
+
 use std::{collections::HashSet, env, path::PathBuf, thread, time::Duration};
 
 use arc_swap::ArcSwap;
@@ -16,9 +18,12 @@ use offdictd::{
 };
 use tokio::{
     net::UnixStream,
-    sync::{mpsc::{self, UnboundedSender}, watch},
+    sync::{
+        mpsc::{self, UnboundedSender},
+        watch,
+    },
 };
-use tracing::{Level, info, level_filters::LevelFilter};
+use tracing::{Level, error, info, level_filters::LevelFilter};
 use tracing_subscriber::{filter::targets, layer::SubscriberExt, util::SubscriberInitExt};
 use wayland::{
     self, App,
@@ -163,7 +168,7 @@ fn main() -> Result<()> {
             let mut dict_load = Offdict::<Strprox>::open_db(db_path.clone())?;
             dict_load.load_index(db_path)?;
             dict.store(Some(dict_load).into());
-            
+
             let app = HoverPanelApp {
                 ui: sx,
                 dict,
@@ -174,12 +179,12 @@ fn main() -> Result<()> {
                 debug_view: START_AS_DEBUG,
                 query: query_rx,
                 text: String::new(),
-                wsx: wsx2
+                wsx: wsx2,
             };
             Ok(Box::new(app))
         }),
     );
-    
+
     let msg2 = sx.clone();
     let msg3 = sx.clone();
     use futures::StreamExt;
@@ -277,19 +282,23 @@ fn main() -> Result<()> {
     });
 
     std::thread::spawn(move || {
-        wrap_noncritical_sync(|| {
-            let mut lis = wayland_clipboard_listener::WlClipboardPasteStream::init(
-                WlListenType::ListenOnSelect,
-            )?;
-            for ctx in lis.paste_stream().flatten() {
-                let stx = String::from_utf8(ctx.context.context);
-                if let Ok(stx) = stx {
-                    info!("select {:?}", &stx);
-                    wsx.send(stx)?;                    
+        loop {
+            let rx = (|| {
+                let mut lis = wayland_clipboard_listener::WlClipboardPasteStream::init(
+                    WlListenType::ListenOnSelect,
+                )?;
+                for ctx in lis.paste_stream().flatten() {
+                    let stx = String::from_utf8(ctx.context.context);
+                    if let Ok(stx) = stx {
+                        info!("select {:?}", &stx);
+                        wsx.send(stx)?;
+                    }
                 }
-            }
-            anyhow::Ok(())
-        });
+                anyhow::Ok(())
+            })();
+
+            error!(rx =?rx, "clipboard listener crashed");
+        }
     });
 
     wayland.run()?;
@@ -309,7 +318,7 @@ struct HoverPanelApp {
     query: ArcSw<Vec<SectionTop>>,
     /// current input
     text: String,
-    wsx: UnboundedSender<String>
+    wsx: UnboundedSender<String>,
 }
 
 enum SearchStatus {
