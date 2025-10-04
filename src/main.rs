@@ -291,7 +291,11 @@ fn main() -> Result<()> {
                     let stx = String::from_utf8(ctx.context.context);
                     if let Ok(stx) = stx {
                         info!("select {:?}", &stx);
-                        wsx.send(stx)?;
+                        let s = wsx.send(stx);
+                        if s.is_err() {
+                            error!(err = ?s, "main thread died");
+                            break;
+                        }
                     }
                 }
                 anyhow::Ok(())
