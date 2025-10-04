@@ -40,6 +40,18 @@ fonts
 dnf install google-droid-fonts dejavusansmono-nerd-fonts # fedora
 ```
 
+usage 
+
+```sh
+cargo b -p wpopup
+sudo ./target/debug/gestured # hotkey server
+cargo b -r # launch the dictionary GUI
+```
+
+double tap left-control to show or hide the panel
+
+select any text on any wayland window It should pick up your word and fuzzy search instantly
+
 ## Known bugs
 
 - IME works sometimes and sometimes not. The state handling of wayland is probably faulty.

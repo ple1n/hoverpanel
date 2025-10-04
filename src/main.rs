@@ -282,7 +282,8 @@ fn main() -> Result<()> {
     });
 
     std::thread::spawn(move || {
-        loop {
+        let mut kill = false;
+        while !kill {
             let rx = (|| {
                 let mut lis = wayland_clipboard_listener::WlClipboardPasteStream::init(
                     WlListenType::ListenOnSelect,
@@ -294,6 +295,7 @@ fn main() -> Result<()> {
                         let s = wsx.send(stx);
                         if s.is_err() {
                             error!(err = ?s, "main thread died");
+                            kill = true;
                             break;
                         }
                     }
