@@ -24,7 +24,7 @@ use tokio::{
     },
 };
 use tracing::{Level, error, info, level_filters::LevelFilter};
-use tracing_subscriber::{filter::targets, layer::SubscriberExt, util::SubscriberInitExt};
+use tracing_subscriber::{Layer, filter::targets, layer::SubscriberExt, util::SubscriberInitExt};
 use wayland::{
     self, App,
     application::{Msg, MsgQueue, WgpuLayerShellApp},
@@ -32,7 +32,7 @@ use wayland::{
     egui::{self, Color32, Context, Margin, RichText, Ui, Vec2, Visuals, scroll_area},
     egui_chinese_font::{self, load_chinese_font},
     errors::wrap_noncritical_sync,
-    layer_shell::{Anchor, KeyboardInteractivity, Layer, LayerShellOptions},
+    layer_shell::{Anchor, KeyboardInteractivity, LayerShellOptions},
     proto::{DEFAULT_SERVE_PATH, KeyCode, Kind, ProtoGesture, TapDist},
     run_layer,
     wayland_clipboard_listener::{self, WlListenType},
@@ -84,7 +84,10 @@ fn main() -> Result<()> {
         ev.excluded.push(Glob::new(glob)?);
     }
 
-    tracing_subscriber::registry().with(ev.clone()).try_init()?;
+    tracing_subscriber::registry()
+        .with(ev.clone())
+        .with(tracing_subscriber::fmt::layer().with_filter(LevelFilter::WARN))
+        .try_init()?;
 
     let separate_window_console = true;
     if separate_window_console {
@@ -283,6 +286,7 @@ fn main() -> Result<()> {
 
     std::thread::spawn(move || {
         let mut kill = false;
+        error!("start clipboard listener");
         while !kill {
             let rx = (|| {
                 let mut lis = wayland_clipboard_listener::WlClipboardPasteStream::init(
