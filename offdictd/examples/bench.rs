@@ -7,7 +7,7 @@ use std::{
 use regex::Regex;
 use tokio::{self};
 
-use offdictd::{def_bin::WrapperDef, fst_index::fstmmap, topk::TopkParam, *};
+use offdictd::{topk::TopkParam, *};
 use topk::Strprox;
 
 const REG: &str = r"(?<query>[^+]+)\s*([+](?<num>[0-9]+))?";

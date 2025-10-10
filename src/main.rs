@@ -1,6 +1,13 @@
 #![allow(unreachable_code)]
 
-use std::{collections::HashSet, env, path::PathBuf, thread, time::Duration};
+use std::{
+    collections::HashSet,
+    env,
+    os::fd::{AsFd, AsRawFd, FromRawFd, IntoRawFd, OwnedFd},
+    path::PathBuf,
+    thread,
+    time::Duration,
+};
 
 use arc_swap::ArcSwap;
 use eframe::{
@@ -10,7 +17,7 @@ use eframe::{
 use egui_tracing::{EventCollector, Glob, tracing::collector::AllowedTargets};
 use hoverpanel::console::{console_over_ev, thread_console};
 use offdictd::{
-    self, DefItemWrapped, Diverge, Offdict,
+    self, AsyncReadExt, DefItemWrapped, Diverge, Offdict,
     def_bin::{Def, Example, MaybeString, MaybeStructuredText, Pronunciation, Tip, WrapperDef},
     init_db, process_cmd, stat,
     tests::{collect_defs, load_fixture},
@@ -22,12 +29,13 @@ use tokio::{
         mpsc::{self, UnboundedSender},
         watch,
     },
+    time::sleep,
 };
-use tracing::{Level, error, info, level_filters::LevelFilter};
+use tracing::{Level, error, info, level_filters::LevelFilter, warn};
 use tracing_subscriber::{Layer, filter::targets, layer::SubscriberExt, util::SubscriberInitExt};
 use wayland::{
     self, App,
-    application::{Msg, MsgQueue, WgpuLayerShellApp},
+    application::{Msg, MsgQueue, WPEvent, WgpuLayerShellApp},
     async_bincode::{self, futures::AsyncBincodeStream},
     egui::{self, Color32, Context, Margin, RichText, Ui, Vec2, Visuals, scroll_area},
     egui_chinese_font::{self, load_chinese_font},
@@ -107,7 +115,9 @@ fn main() -> Result<()> {
     let query_rx2 = query_rx.clone();
     let (wsx, mut wrx) = mpsc::unbounded_channel::<String>();
     let wsx2 = wsx.clone();
-    let (sx, mut wayland) = WgpuLayerShellApp::new(
+    let wsx3 = wsx.clone();
+
+    let (sx, mut evrx, mut wayland) = WgpuLayerShellApp::new(
         opts,
         Box::new(move |ctx, sx| {
             let mut li = Visuals::dark();
@@ -195,10 +205,34 @@ fn main() -> Result<()> {
 
     std::thread::spawn(move || {
         wrap_noncritical_sync(|| {
-            let rt = tokio::runtime::Builder::new_current_thread()
+            let rt = tokio::runtime::Builder::new_multi_thread()
                 .enable_io()
                 .build()?;
             // the thread for word lookup
+            rt.spawn(async move {
+                loop {
+                    if let Some(ev) = evrx.recv().await {
+                        match ev {
+                            WPEvent::Fd(fd) => {
+                                let mut rx =
+                                    tokio::net::unix::pipe::Receiver::from_owned_fd(unsafe {
+                                        OwnedFd::from_raw_fd(fd.into_raw_fd())
+                                    })?;
+                                let mut buf = vec![0; 32];
+                                let read = rx.read(&mut buf[..]).await?;
+                                buf.truncate(read);
+                                let parse = String::from_utf8(buf);
+                                if let Ok(stx) = parse {
+                                    warn!("select {}", stx);
+                                    wsx3.send(stx).unwrap();
+                                }
+                            }
+                        }
+                    }
+                }
+
+                aok(())
+            });
             rt.spawn(async move {
                 let mut last_string = None;
                 loop {
@@ -211,7 +245,6 @@ fn main() -> Result<()> {
                         {
                             continue;
                         }
-                        msg2.send(Msg::Repaint)?;
                         let dict = dict2.load();
                         if let Some(ref dict) = **dict {
                             let dict: &Offdict<Strprox> = dict;
@@ -243,40 +276,44 @@ fn main() -> Result<()> {
                             last_string = Some(stx);
                         }
                     } else {
+                        error!("new word recver stopped");
                         break;
                     }
                 }
                 anyhow::Ok(())
             });
             rt.block_on(async move {
-                let conn = UnixStream::connect(DEFAULT_SERVE_PATH).await?;
-                let mut fm: AsyncBincodeStream<
-                    tokio::net::UnixStream,
-                    ProtoGesture,
-                    ProtoGesture,
-                    async_bincode::AsyncDestination,
-                > = AsyncBincodeStream::from(conn).for_async();
-                let mut tap_count = 0;
                 loop {
-                    let k = fm.next().await;
-                    if let Some(ges) = k {
-                        let ges = ges?;
-                        if ges.key == KeyCode::KEY_LEFTCTRL {
-                            match ges.kind {
-                                Kind::Taps(TapDist::First(_)) => {
-                                    tap_count = 0;
-                                    msg3.send(Msg::Toggle)?;
-                                }
-                                Kind::Taps(TapDist::Seq(_)) => {
-                                    tap_count += 1;
-                                    if tap_count % 2 == 0 {
+                    let conn = UnixStream::connect(DEFAULT_SERVE_PATH).await?;
+                    let mut fm: AsyncBincodeStream<
+                        tokio::net::UnixStream,
+                        ProtoGesture,
+                        ProtoGesture,
+                        async_bincode::AsyncDestination,
+                    > = AsyncBincodeStream::from(conn).for_async();
+                    let mut tap_count = 0;
+                    loop {
+                        let k = fm.next().await;
+                        if let Some(ges) = k {
+                            let ges = ges?;
+                            if ges.key == KeyCode::KEY_LEFTCTRL {
+                                match ges.kind {
+                                    Kind::Taps(TapDist::First(_)) => {
+                                        tap_count = 0;
                                         msg3.send(Msg::Toggle)?;
                                     }
+                                    Kind::Taps(TapDist::Seq(_)) => {
+                                        tap_count += 1;
+                                        if tap_count % 2 == 0 {
+                                            msg3.send(Msg::Toggle)?;
+                                        }
+                                    }
+                                    _ => {}
                                 }
-                                _ => {}
                             }
                         }
                     }
+                    sleep(Duration::from_secs(5)).await;
                 }
                 aok(())
             })?;
@@ -284,32 +321,34 @@ fn main() -> Result<()> {
         });
     });
 
-    std::thread::spawn(move || {
-        let mut kill = false;
-        error!("start clipboard listener");
-        while !kill {
-            let rx = (|| {
-                let mut lis = wayland_clipboard_listener::WlClipboardPasteStream::init(
-                    WlListenType::ListenOnSelect,
-                )?;
-                for ctx in lis.paste_stream().flatten() {
-                    let stx = String::from_utf8(ctx.context.context);
-                    if let Ok(stx) = stx {
-                        info!("select {:?}", &stx);
-                        let s = wsx.send(stx);
-                        if s.is_err() {
-                            error!(err = ?s, "main thread died");
-                            kill = true;
-                            break;
+    if false {
+        std::thread::spawn(move || {
+            let mut kill = false;
+            error!("start clipboard listener");
+            while !kill {
+                let rx = (|| {
+                    let mut lis = wayland_clipboard_listener::WlClipboardPasteStream::init(
+                        WlListenType::ListenOnSelect,
+                    )?;
+                    for ctx in lis.paste_stream().flatten() {
+                        let stx = String::from_utf8(ctx.context.context);
+                        if let Ok(stx) = stx {
+                            info!("select {:?}", &stx);
+                            let s = wsx.send(stx);
+                            if s.is_err() {
+                                error!(err = ?s, "main thread died");
+                                kill = true;
+                                break;
+                            }
                         }
                     }
-                }
-                anyhow::Ok(())
-            })();
+                    anyhow::Ok(())
+                })();
 
-            error!(rx =?rx, "clipboard listener crashed");
-        }
-    });
+                error!(rx =?rx, "clipboard listener crashed");
+            }
+        });
+    }
 
     wayland.run()?;
     anyhow::Ok(())
