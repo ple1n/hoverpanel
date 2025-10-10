@@ -43,7 +43,6 @@ use wayland::{
     layer_shell::{Anchor, KeyboardInteractivity, LayerShellOptions},
     proto::{DEFAULT_SERVE_PATH, KeyCode, Kind, ProtoGesture, TapDist},
     run_layer,
-    wayland_clipboard_listener::{self, WlListenType},
 };
 
 use anyhow::{Result, anyhow};
@@ -320,35 +319,6 @@ fn main() -> Result<()> {
             aok(())
         });
     });
-
-    if false {
-        std::thread::spawn(move || {
-            let mut kill = false;
-            error!("start clipboard listener");
-            while !kill {
-                let rx = (|| {
-                    let mut lis = wayland_clipboard_listener::WlClipboardPasteStream::init(
-                        WlListenType::ListenOnSelect,
-                    )?;
-                    for ctx in lis.paste_stream().flatten() {
-                        let stx = String::from_utf8(ctx.context.context);
-                        if let Ok(stx) = stx {
-                            info!("select {:?}", &stx);
-                            let s = wsx.send(stx);
-                            if s.is_err() {
-                                error!(err = ?s, "main thread died");
-                                kill = true;
-                                break;
-                            }
-                        }
-                    }
-                    anyhow::Ok(())
-                })();
-
-                error!(rx =?rx, "clipboard listener crashed");
-            }
-        });
-    }
 
     wayland.run()?;
     anyhow::Ok(())
