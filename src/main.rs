@@ -320,7 +320,8 @@ fn main() -> Result<()> {
         });
     });
 
-    wayland.run()?;
+    wayland.run_forever()?;
+    
     anyhow::Ok(())
 }
 
