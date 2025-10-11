@@ -320,6 +320,8 @@ fn main() -> Result<()> {
                                         tap_count = 0;
                                         if allow_show {
                                             msg3.send(Msg::Toggle)?;
+                                        } else {
+                                            msg3.send(Msg::Hide(true))?;
                                         }
                                     }
                                     Kind::Taps(TapDist::Seq(_)) => {
@@ -327,6 +329,8 @@ fn main() -> Result<()> {
                                         if tap_count % 2 == 0 {
                                             if allow_show {
                                                 msg3.send(Msg::Toggle)?;
+                                            } else {
+                                                msg3.send(Msg::Hide(true))?;
                                             }
                                         }
                                     }
