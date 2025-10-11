@@ -1783,6 +1783,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "eyeball"
+version = "0.8.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d93bd0ebf93d61d6332d3c09a96e97975968a44e19a64c947bde06e6baff383f"
+dependencies = [
+ "futures-core",
+ "readlock",
+]
+
+[[package]]
 name = "fastrand"
 version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2372,8 +2382,10 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "arc-swap",
+ "crossbeam",
  "eframe",
  "egui_tracing",
+ "eyeball",
  "flume-overwrite",
  "futures",
  "offdictd",
@@ -4045,6 +4057,12 @@ dependencies = [
  "crossbeam-deque",
  "crossbeam-utils",
 ]
+
+[[package]]
+name = "readlock"
+version = "0.1.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "188bbae3aa4739bd264e9204da5919b2c91dd87dcce5049cf04bdf6aa17c5012"
 
 [[package]]
 name = "redox_syscall"

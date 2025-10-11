@@ -6,15 +6,17 @@ use std::{
     os::fd::{AsFd, AsRawFd, FromRawFd, IntoRawFd, OwnedFd},
     path::PathBuf,
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use arc_swap::ArcSwap;
+use crossbeam::atomic::AtomicCell;
 use eframe::{
     NativeOptions,
     egui::{FontData, FontDefinitions, FontFamily, FontId, Style, TextEdit, Widget, frame},
 };
 use egui_tracing::{EventCollector, Glob, tracing::collector::AllowedTargets};
+use eyeball::Observable;
 use hoverpanel::console::{console_over_ev, thread_console};
 use offdictd::{
     self, AsyncReadExt, DefItemWrapped, Diverge, Offdict,
@@ -50,9 +52,18 @@ use anyhow::{Result, anyhow};
 use hoverpanel::prelude::*;
 
 static START_AS_DEBUG: bool = false;
+static RECENT_QUERY: AtomicCell<Option<Instant>> = AtomicCell::new(None);
+
+struct GlobalConfig {
+    /// The amount of time you can dither to decide whether you want the panel to show up
+    dither: Duration,
+}
 
 fn main() -> Result<()> {
     let has_args = std::env::args().len() > 1;
+    let app_conf_ = Arc::new(Observable::new(GlobalConfig {
+        dither: Duration::from_millis(500),
+    }));
 
     let db_path = env::current_dir()?.join("./data");
     if has_args {
@@ -116,7 +127,7 @@ fn main() -> Result<()> {
     let wsx2 = wsx.clone();
     let wsx3 = wsx.clone();
 
-    let (sx, mut evrx, mut wayland) = WgpuLayerShellApp::new(
+    let (sx, mut evrx, wayland) = WgpuLayerShellApp::new(
         opts,
         Box::new(move |ctx, sx| {
             let mut li = Visuals::dark();
@@ -202,6 +213,7 @@ fn main() -> Result<()> {
     use futures::StreamExt;
     use wayland::async_bincode::tokio::*;
 
+    let app_conf = app_conf_.clone();
     std::thread::spawn(move || {
         wrap_noncritical_sync(|| {
             let rt = tokio::runtime::Builder::new_multi_thread()
@@ -247,6 +259,8 @@ fn main() -> Result<()> {
                         let dict = dict2.load();
                         if let Some(ref dict) = **dict {
                             let dict: &Offdict<Strprox> = dict;
+                            RECENT_QUERY.store(Some(Instant::now()));
+
                             let rx = dict.search(&stx, 5, false)?;
                             info!("searched {} with {} results", &stx, rx.len());
                             let mut new_rx = Vec::new();
@@ -296,19 +310,32 @@ fn main() -> Result<()> {
                         if let Some(ges) = k {
                             let ges = ges?;
                             if ges.key == KeyCode::KEY_LEFTCTRL {
+                                let recent = RECENT_QUERY.load();
+                                let interim = recent.map(|k| k.elapsed());
+                                let allow_show = interim.map(|k| k <= app_conf.dither);
+                                let allow_show = allow_show.unwrap_or_default();
+
                                 match ges.kind {
                                     Kind::Taps(TapDist::First(_)) => {
                                         tap_count = 0;
-                                        msg3.send(Msg::Toggle)?;
+                                        if allow_show {
+                                            msg3.send(Msg::Toggle)?;
+                                        }
                                     }
                                     Kind::Taps(TapDist::Seq(_)) => {
                                         tap_count += 1;
                                         if tap_count % 2 == 0 {
-                                            msg3.send(Msg::Toggle)?;
+                                            if allow_show {
+                                                msg3.send(Msg::Toggle)?;
+                                            }
                                         }
                                     }
                                     _ => {}
                                 }
+                            }
+
+                            if ges.is_unordered(KeyCode::KEY_LEFTCTRL, KeyCode::KEY_LEFTMETA) {
+                                msg3.send(Msg::Toggle)?;
                             }
                         }
                     }
@@ -321,7 +348,7 @@ fn main() -> Result<()> {
     });
 
     wayland.run_forever()?;
-    
+
     anyhow::Ok(())
 }
 
