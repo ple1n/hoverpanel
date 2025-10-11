@@ -62,7 +62,7 @@ struct GlobalConfig {
 fn main() -> Result<()> {
     let has_args = std::env::args().len() > 1;
     let app_conf_ = Arc::new(Observable::new(GlobalConfig {
-        dither: Duration::from_millis(500),
+        dither: Duration::from_millis(4000),
     }));
 
     let db_path = env::current_dir()?.join("./data");
