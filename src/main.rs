@@ -305,6 +305,7 @@ fn main() -> Result<()> {
                         async_bincode::AsyncDestination,
                     > = AsyncBincodeStream::from(conn).for_async();
                     let mut tap_count = 0;
+                    let mut used = None;
                     loop {
                         let k = fm.next().await;
                         if let Some(ges) = k {
@@ -313,8 +314,13 @@ fn main() -> Result<()> {
                                 let recent = RECENT_QUERY.load();
                                 let interim = recent.map(|k| k.elapsed());
                                 let allow_show = interim.map(|k| k <= app_conf.dither);
-                                let allow_show = allow_show.unwrap_or_default();
-
+                                let mut allow_show = allow_show.unwrap_or_default();
+                                if used == recent {
+                                    allow_show = false;
+                                }
+                                if allow_show {
+                                    used = recent;
+                                }
                                 match ges.kind {
                                     Kind::Taps(TapDist::First(_)) => {
                                         tap_count = 0;
