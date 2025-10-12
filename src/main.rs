@@ -130,60 +130,6 @@ fn main() -> Result<()> {
     let (sx, mut evrx, wayland) = WgpuLayerShellApp::new(
         opts,
         Box::new(move |ctx, sx| {
-            let mut li = Visuals::dark();
-            li.override_text_color = Some(Color32::WHITE.gamma_multiply(1.));
-            li.weak_text_alpha = 0.9;
-            ctx.set_visuals(li);
-
-            let mut fonts = FontDefinitions::default();
-
-            let chinese_font_data = load_chinese_font()?;
-
-            fonts
-                .font_data
-                .insert("chinese".to_owned(), chinese_font_data.into());
-
-            let font_list = [
-                "/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf",
-                "/usr/share/fonts/TTF/DejaVuSansMNerdFont-Regular.ttf",
-            ];
-            let mut data: Option<Vec<u8>> = None;
-            for p in font_list {
-                match std::fs::read(p) {
-                    Ok(d) => data = Some(d),
-                    Err(_) => (),
-                }
-            }
-            let loaded = FontData::from_owned(data.ok_or(anyhow!("cannot load a font for IPA"))?);
-            fonts.font_data.insert("ipa".to_owned(), loaded.into());
-            fonts
-                .families
-                .entry(FontFamily::Proportional)
-                .or_default()
-                .insert(0, "chinese".to_owned());
-            fonts
-                .families
-                .entry(FontFamily::Monospace)
-                .or_default()
-                .insert(0, "chinese".to_owned());
-            fonts
-                .families
-                .entry(FontFamily::Monospace)
-                .or_default()
-                .insert(0, "ipa".to_owned());
-            fonts
-                .families
-                .entry(FontFamily::Proportional)
-                .or_default()
-                .insert(0, "ipa".to_owned());
-
-            // I have experimented to conclude that, Dejavu doesnt support CJK
-            // Its a fallback mechanism that makes both work.
-
-            info!("{:?}", &fonts.families);
-
-            ctx.set_fonts(fonts);
-
             let defs = load_fixture()?;
             let defs: Vec<Def> = defs.into_iter().map(|x| x.normalize_def().into()).collect();
             let wrapped = collect_defs(defs);
@@ -390,6 +336,64 @@ impl App for HoverPanelApp {
         } else {
             self.render(ctx);
         }
+    }
+    fn init(&self, ctx: &egui::Context) {
+        wrap_noncritical_sync(|| {
+            let mut li = Visuals::dark();
+            li.override_text_color = Some(Color32::WHITE.gamma_multiply(1.));
+            li.weak_text_alpha = 0.9;
+            ctx.set_visuals(li);
+
+            let mut fonts = FontDefinitions::default();
+
+            let chinese_font_data = load_chinese_font()?;
+
+            fonts
+                .font_data
+                .insert("chinese".to_owned(), chinese_font_data.into());
+
+            let font_list = [
+                "/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf",
+                "/usr/share/fonts/TTF/DejaVuSansMNerdFont-Regular.ttf",
+            ];
+            let mut data: Option<Vec<u8>> = None;
+            for p in font_list {
+                match std::fs::read(p) {
+                    Ok(d) => data = Some(d),
+                    Err(_) => (),
+                }
+            }
+            let loaded = FontData::from_owned(data.ok_or(anyhow!("cannot load a font for IPA"))?);
+            fonts.font_data.insert("ipa".to_owned(), loaded.into());
+            fonts
+                .families
+                .entry(FontFamily::Proportional)
+                .or_default()
+                .insert(0, "chinese".to_owned());
+            fonts
+                .families
+                .entry(FontFamily::Monospace)
+                .or_default()
+                .insert(0, "chinese".to_owned());
+            fonts
+                .families
+                .entry(FontFamily::Monospace)
+                .or_default()
+                .insert(0, "ipa".to_owned());
+            fonts
+                .families
+                .entry(FontFamily::Proportional)
+                .or_default()
+                .insert(0, "ipa".to_owned());
+
+            // I have experimented to conclude that, Dejavu doesnt support CJK
+            // Its a fallback mechanism that makes both work.
+
+            info!("{:?}", &fonts.families);
+
+            ctx.set_fonts(fonts);
+            aok(())
+        });
     }
 }
 
