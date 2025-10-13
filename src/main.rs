@@ -175,13 +175,13 @@ fn main() -> Result<()> {
                                     tokio::net::unix::pipe::Receiver::from_owned_fd(unsafe {
                                         OwnedFd::from_raw_fd(fd.into_raw_fd())
                                     })?;
-                                let mut buf = vec![0; 32];
-                                let read = rx.read(&mut buf[..]).await?;
-                                buf.truncate(read);
+                                let mut buf = vec![];
+                                rx.read_to_end(&mut buf).await?;
                                 let parse = String::from_utf8(buf);
-                                if let Ok(stx) = parse {
+                                if let Ok(mut stx) = parse {
+                                    wsx3.send(stx.clone()).unwrap();
+                                    stx.truncate(10);
                                     warn!("select {}", stx);
-                                    wsx3.send(stx).unwrap();
                                 }
                             }
                         }
