@@ -178,9 +178,9 @@ fn main() -> Result<()> {
                                 let mut buf = vec![];
                                 rx.read_to_end(&mut buf).await?;
                                 let parse = String::from_utf8(buf);
-                                if let Ok(mut stx) = parse {
+                                if let Ok(stx) = parse {
                                     wsx3.send(stx.clone()).unwrap();
-                                    stx.truncate(10);
+                                    let stx: String = stx.chars().take(10).collect();
                                     warn!("select {}", stx);
                                 }
                             }
