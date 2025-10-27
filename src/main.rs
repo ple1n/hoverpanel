@@ -37,7 +37,7 @@ use tracing::{Level, error, info, level_filters::LevelFilter, warn};
 use tracing_subscriber::{Layer, filter::targets, layer::SubscriberExt, util::SubscriberInitExt};
 use wayland::{
     self, App,
-    application::{Msg, MsgQueue, WPEvent, WgpuLayerShellApp},
+    application::{EvRx, Msg, MsgQueue, WPEvent, WgpuLayerShellApp},
     async_bincode::{self, futures::AsyncBincodeStream},
     egui::{self, Color32, Context, Margin, RichText, Ui, Vec2, Visuals, scroll_area},
     egui_chinese_font::{self, load_chinese_font},
@@ -129,7 +129,7 @@ fn main() -> Result<()> {
 
     let (sx, mut evrx, wayland) = WgpuLayerShellApp::new(
         opts,
-        Box::new(move |ctx, sx| {
+        Box::new(move |ctx, sx, evrx| {
             let defs = load_fixture()?;
             let defs: Vec<Def> = defs.into_iter().map(|x| x.normalize_def().into()).collect();
             let wrapped = collect_defs(defs);
@@ -149,6 +149,7 @@ fn main() -> Result<()> {
                 query: query_rx,
                 text: String::new(),
                 wsx: wsx2,
+                evrx
             };
             Ok(Box::new(app))
         }),
@@ -168,7 +169,7 @@ fn main() -> Result<()> {
             // the thread for word lookup
             rt.spawn(async move {
                 loop {
-                    if let Some(ev) = evrx.recv().await {
+                    if let Ok(ev) = evrx.recv_async().await {
                         match ev {
                             WPEvent::Fd(fd) => {
                                 let mut rx =
@@ -325,6 +326,7 @@ struct HoverPanelApp {
     /// current input
     text: String,
     wsx: UnboundedSender<String>,
+    evrx: EvRx
 }
 
 enum SearchStatus {
