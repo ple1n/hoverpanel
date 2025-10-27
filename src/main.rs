@@ -179,10 +179,11 @@ fn main() -> Result<()> {
                                 rx.read_to_end(&mut buf).await?;
                                 let parse = String::from_utf8(buf);
                                 if let Ok(stx) = parse {
-                                    if stx.len() < 20 {
+                                    let len = stx.len();
+                                    if len < 20 {
                                         wsx3.send(stx.clone()).unwrap();
                                         let stx: String = stx.chars().take(10).collect();
-                                        warn!("select {}", stx);
+                                        warn!(len = len, "select {}", stx);
                                     }
                                 }
                             }
