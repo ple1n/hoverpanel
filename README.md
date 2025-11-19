@@ -1,6 +1,8 @@
 
 # Hoverpanel
 
+It's currently recommended to use [Niri](https://github.com/YaLTeR/niri) because a recent update broke the protocol of `data-control` in KWin.
+
 work in progress.
 
 ![](https://github.com/user-attachments/assets/7f94c94d-a58d-44dc-a0f4-2dd725c9e705)
