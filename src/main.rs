@@ -42,7 +42,7 @@ use wayland::{
     egui::{self, Color32, Context, Margin, RichText, Ui, Vec2, Visuals, scroll_area},
     egui_chinese_font::{self, load_chinese_font},
     errors::wrap_noncritical_sync,
-    layer_shell::{Anchor, KeyboardInteractivity, LayerShellOptions},
+    layer_shell::{Anchor, KeyboardInteractivity, LayerShellOptions, WgpuLayerShellState},
     proto::{DEFAULT_SERVE_PATH, KeyCode, Kind, ProtoGesture, TapDist},
     run_layer,
 };
@@ -155,6 +155,7 @@ fn main() -> Result<()> {
                 text: String::new(),
                 wsx: wsx2,
                 evrx,
+                bg_opacity: 1.,
             };
             Ok(Box::new(app))
         }),
@@ -332,6 +333,8 @@ struct HoverPanelApp {
     text: String,
     wsx: UnboundedSender<String>,
     evrx: EvRx,
+    /// Opacity for base window
+    bg_opacity: f32,
 }
 
 enum SearchStatus {
@@ -347,7 +350,14 @@ impl App for HoverPanelApp {
             self.render(ctx);
         }
     }
-    fn init(&self, ctx: &egui::Context) {
+    fn sync(&mut self, layer: &WgpuLayerShellState) {
+        if layer.has_blur {
+            self.bg_opacity = 0.5;
+        } else {
+            self.bg_opacity = 1.;
+        }
+    }
+    fn init(&self, ctx: &egui::Context, layer: &WgpuLayerShellState) {
         wrap_noncritical_sync(|| {
             let mut li = Visuals::dark();
             li.override_text_color = Some(Color32::WHITE.gamma_multiply(1.));
@@ -545,7 +555,7 @@ impl HoverPanelApp {
                         Color32::BLACK
                             .blend(Color32::WHITE.gamma_multiply(0.2))
                             .blend(Color32::LIGHT_YELLOW.gamma_multiply(0.1))
-                            .gamma_multiply(0.5),
+                            .gamma_multiply(self.bg_opacity),
                     ),
             )
             .show(ctx, |ui| {
