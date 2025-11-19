@@ -77,9 +77,9 @@ fn main() -> Result<()> {
 
     let opts = LayerShellOptions {
         width: if START_AS_DEBUG { 1000 } else { 400 },
-        height: 800,
-        anchor: Some(Anchor::LEFT),
-        margin: (50, 50, 50, 50),
+        height: 1200,
+        anchor: Some(Anchor::BOTTOM | Anchor::LEFT),
+        margin: (0, 0, 0, 0),
         namespace: "hoverpanel".to_string(),
         keyboard_interactivity: Some(KeyboardInteractivity::OnDemand),
         ..Default::default()
