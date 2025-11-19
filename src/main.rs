@@ -1,4 +1,5 @@
 #![allow(unreachable_code)]
+#![allow(unused)]
 
 use std::{
     collections::HashSet,
@@ -11,13 +12,13 @@ use std::{
 
 use arc_swap::ArcSwap;
 use crossbeam::atomic::AtomicCell;
-use eframe::{
+use wayland::eframe::{
     NativeOptions,
     egui::{FontData, FontDefinitions, FontFamily, FontId, Style, TextEdit, Widget, frame},
 };
 use egui_tracing::{EventCollector, Glob, tracing::collector::AllowedTargets};
 use eyeball::Observable;
-use hoverpanel::console::{console_over_ev, thread_console};
+use hoverpanel::console::{ConsoleCmd, console_over_ev, thread_console};
 use offdictd::{
     self, AsyncReadExt, DefItemWrapped, Diverge, Offdict,
     def_bin::{Def, Example, MaybeString, MaybeStructuredText, Pronunciation, Tip, WrapperDef},
@@ -112,11 +113,12 @@ fn main() -> Result<()> {
         )
         .try_init()?;
 
+    let (console_sx, con_rx) = flume::unbounded();
     let separate_window_console = true;
     if separate_window_console {
         let ev = ev.clone();
         thread::spawn(move || {
-            thread_console(ev);
+            thread_console(ev, con_rx);
         });
     }
 
@@ -156,6 +158,7 @@ fn main() -> Result<()> {
                 wsx: wsx2,
                 evrx,
                 bg_opacity: 1.,
+                console_sx,
             };
             Ok(Box::new(app))
         }),
@@ -335,6 +338,7 @@ struct HoverPanelApp {
     evrx: EvRx,
     /// Opacity for base window
     bg_opacity: f32,
+    console_sx: flume::Sender<ConsoleCmd>,
 }
 
 enum SearchStatus {
@@ -651,7 +655,9 @@ impl HoverPanelApp {
                                 ctx.request_repaint();
                             }
                             if ui.button("dev").clicked() {
-                                // todo
+                                self.console_sx
+                                    .send(ConsoleCmd::Show(Instant::now()))
+                                    .unwrap();
                             }
                         }
                     });
