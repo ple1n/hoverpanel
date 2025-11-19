@@ -80,6 +80,7 @@ fn main() -> Result<()> {
         height: 800,
         anchor: Some(Anchor::LEFT),
         margin: (50, 50, 50, 50),
+        namespace: "hoverpanel".to_string(),
         keyboard_interactivity: Some(KeyboardInteractivity::OnDemand),
         ..Default::default()
     };
