@@ -12,13 +12,7 @@ use std::{
 
 use arc_swap::ArcSwap;
 use crossbeam::atomic::AtomicCell;
-use wayland::eframe::{
-    NativeOptions,
-    egui::{FontData, FontDefinitions, FontFamily, FontId, Style, TextEdit, Widget, frame},
-};
-use egui_tracing::{EventCollector, Glob, tracing::collector::AllowedTargets};
 use eyeball::Observable;
-use hoverpanel::console::{ConsoleCmd, console_over_ev, thread_console};
 use offdictd::{
     self, AsyncReadExt, DefItemWrapped, Diverge, Offdict,
     def_bin::{Def, Example, MaybeString, MaybeStructuredText, Pronunciation, Tip, WrapperDef},
@@ -36,6 +30,10 @@ use tokio::{
 };
 use tracing::{Level, error, info, level_filters::LevelFilter, warn};
 use tracing_subscriber::{Layer, filter::targets, layer::SubscriberExt, util::SubscriberInitExt};
+use wayland::eframe::{
+    NativeOptions,
+    egui::{FontData, FontDefinitions, FontFamily, FontId, Style, TextEdit, Widget, frame},
+};
 use wayland::{
     self, App,
     application::{EvRx, Msg, MsgQueue, WPEvent, WgpuLayerShellApp},
@@ -86,41 +84,13 @@ fn main() -> Result<()> {
         ..Default::default()
     };
 
-    let mut targets: Vec<String> = ["naga"].iter().map(|k| (*k).to_owned()).collect();
-    targets.clear();
-
-    let mut ev = if targets.len() > 0 {
-        EventCollector::new()
-            .with_level(Level::DEBUG)
-            .allowed_targets(AllowedTargets::Selected(targets))
-    } else {
-        EventCollector::new()
-            .with_level(Level::DEBUG)
-            .allowed_targets(AllowedTargets::All)
-    };
-
-    let globs = ["naga*", "egui*", "glob*", "sctk*", "wgpu*"];
-    for glob in globs {
-        ev.excluded.push(Glob::new(glob)?);
-    }
-
     tracing_subscriber::registry()
-        .with(ev.clone())
         .with(
             tracing_subscriber::fmt::layer()
                 .without_time()
                 .with_filter(LevelFilter::WARN),
         )
         .try_init()?;
-
-    let (console_sx, con_rx) = flume::unbounded();
-    let separate_window_console = true;
-    if separate_window_console {
-        let ev = ev.clone();
-        thread::spawn(move || {
-            thread_console(ev, con_rx);
-        });
-    }
 
     info!("{:?}", FontDefinitions::default().families);
 
@@ -151,14 +121,12 @@ fn main() -> Result<()> {
                 search: wrapped.values().map(|x| x.to_owned()).collect(),
                 status: SearchStatus::Initial,
                 stat: None,
-                eview: Some(ev),
                 debug_view: START_AS_DEBUG,
                 query: query_rx,
                 text: String::new(),
                 wsx: wsx2,
                 evrx,
                 bg_opacity: 1.,
-                console_sx,
             };
             Ok(Box::new(app))
         }),
@@ -328,7 +296,6 @@ struct HoverPanelApp {
     search: Vec<DefItemWrapped>,
     status: SearchStatus,
     stat: Option<stat>,
-    eview: Option<EventCollector>,
     debug_view: bool,
     /// results from last query
     query: ArcSw<Vec<SectionTop>>,
@@ -338,7 +305,6 @@ struct HoverPanelApp {
     evrx: EvRx,
     /// Opacity for base window
     bg_opacity: f32,
-    console_sx: flume::Sender<ConsoleCmd>,
 }
 
 enum SearchStatus {
@@ -355,10 +321,14 @@ impl App for HoverPanelApp {
         }
     }
     fn sync(&mut self, layer: &WgpuLayerShellState) {
-        if layer.has_blur {
-            self.bg_opacity = 0.5;
+        if layer.current_layer == wayland::Layer::Background {
+            self.bg_opacity = 0.;
         } else {
-            self.bg_opacity = 1.;
+            if layer.has_blur {
+                self.bg_opacity = 0.5;
+            } else {
+                self.bg_opacity = 1.;
+            }
         }
     }
     fn init(&self, ctx: &egui::Context, layer: &WgpuLayerShellState) {
@@ -528,17 +498,6 @@ impl HoverPanelApp {
                     });
                 })
             });
-
-        if self.debug_view
-            && let Some(ev) = &self.eview
-        {
-            egui::TopBottomPanel::new(egui::panel::TopBottomSide::Bottom, "console")
-                .resizable(true)
-                .default_height(400.)
-                .show(ctx, |ui| {
-                    ui.add(egui_tracing::Logs::new(ev.clone()));
-                });
-        }
     }
 
     fn render(&mut self, ctx: &Context) {
@@ -653,11 +612,6 @@ impl HoverPanelApp {
                             if ui.button("hide").clicked() {
                                 self.ui.send(Msg::Hide(true)).unwrap();
                                 ctx.request_repaint();
-                            }
-                            if ui.button("dev").clicked() {
-                                self.console_sx
-                                    .send(ConsoleCmd::Show(Instant::now()))
-                                    .unwrap();
                             }
                         }
                     });
@@ -802,17 +756,6 @@ impl HoverPanelApp {
                     });
                 })
             });
-
-        if self.debug_view
-            && let Some(ev) = &self.eview
-        {
-            egui::TopBottomPanel::new(egui::panel::TopBottomSide::Bottom, "console")
-                .resizable(true)
-                .default_height(400.)
-                .show(ctx, |ui| {
-                    ui.add(egui_tracing::Logs::new(ev.clone()));
-                });
-        }
     }
 }
 
