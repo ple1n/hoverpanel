@@ -104,7 +104,11 @@ fn main() -> Result<()> {
 
     tracing_subscriber::registry()
         .with(ev.clone())
-        .with(tracing_subscriber::fmt::layer().with_filter(LevelFilter::WARN))
+        .with(
+            tracing_subscriber::fmt::layer()
+                .without_time()
+                .with_filter(LevelFilter::WARN),
+        )
         .try_init()?;
 
     let separate_window_console = true;
@@ -149,7 +153,7 @@ fn main() -> Result<()> {
                 query: query_rx,
                 text: String::new(),
                 wsx: wsx2,
-                evrx
+                evrx,
             };
             Ok(Box::new(app))
         }),
@@ -326,7 +330,7 @@ struct HoverPanelApp {
     /// current input
     text: String,
     wsx: UnboundedSender<String>,
-    evrx: EvRx
+    evrx: EvRx,
 }
 
 enum SearchStatus {
