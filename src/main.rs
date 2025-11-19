@@ -507,116 +507,122 @@ impl HoverPanelApp {
         li.weak_text_alpha = 0.6;
         ctx.set_visuals(li);
 
-        egui::CentralPanel::default()
-            .frame(
-                egui::Frame::new()
-                    .inner_margin(Margin {
-                        bottom: 4,
-                        ..Margin::same(15)
-                    })
-                    .fill(
-                        Color32::BLACK
-                            .blend(Color32::WHITE.gamma_multiply(0.2))
-                            .blend(Color32::LIGHT_YELLOW.gamma_multiply(0.1))
-                            .gamma_multiply(self.bg_opacity),
-                    ),
-            )
-            .show(ctx, |ui| {
-                let mut st = Style::default();
-                st.text_styles.insert(
-                    egui::TextStyle::Body,
-                    FontId {
-                        size: 18.,
-                        family: FontFamily::Proportional,
-                    },
-                );
-                ctx.set_style(st);
-                let h = ui.available_height() - 30.;
-                ui.vertical(|ui| {
-                    ui.set_height(h);
-                    ui.set_width(win.width());
-                    scroll_area::ScrollArea::vertical()
-                        .scroll_bar_visibility(scroll_area::ScrollBarVisibility::VisibleWhenNeeded)
-                        .wheel_scroll_multiplier(Vec2::new(1., 15.))
-                        .auto_shrink([false, false])
-                        .show(ui, |ui| {
-                            self.render_items(|top| {
-                                egui::frame::Frame::new()
-                                    .fill(Color32::WHITE.gamma_multiply(0.08))
-                                    .inner_margin(Margin::same(10))
-                                    .outer_margin(Margin {
-                                        left: -16,
-                                        right: 0,
-                                        top: 15,
-                                        bottom: 0,
-                                    })
-                                    .show(ui, |ui| {
-                                        ui.set_width(win.width());
-                                        ui.label(RichText::new(top.title_l1).color(Color32::WHITE));
-                                        ui.spacing();
+        if self.bg_opacity > 0.0 {
+            egui::CentralPanel::default()
+                .frame(
+                    egui::Frame::new()
+                        .inner_margin(Margin {
+                            bottom: 4,
+                            ..Margin::same(15)
+                        })
+                        .fill(
+                            Color32::BLACK
+                                .blend(Color32::WHITE.gamma_multiply(0.2))
+                                .blend(Color32::LIGHT_YELLOW.gamma_multiply(0.1))
+                                .gamma_multiply(self.bg_opacity),
+                        ),
+                )
+                .show(ctx, |ui| {
+                    let mut st = Style::default();
+                    st.text_styles.insert(
+                        egui::TextStyle::Body,
+                        FontId {
+                            size: 18.,
+                            family: FontFamily::Proportional,
+                        },
+                    );
+                    ctx.set_style(st);
+                    let h = ui.available_height() - 30.;
+                    ui.vertical(|ui| {
+                        ui.set_height(h);
+                        ui.set_width(win.width());
+                        scroll_area::ScrollArea::vertical()
+                            .scroll_bar_visibility(
+                                scroll_area::ScrollBarVisibility::VisibleWhenNeeded,
+                            )
+                            .wheel_scroll_multiplier(Vec2::new(1., 15.))
+                            .auto_shrink([false, false])
+                            .show(ui, |ui| {
+                                self.render_items(|top| {
+                                    egui::frame::Frame::new()
+                                        .fill(Color32::WHITE.gamma_multiply(0.08))
+                                        .inner_margin(Margin::same(10))
+                                        .outer_margin(Margin {
+                                            left: -16,
+                                            right: 0,
+                                            top: 15,
+                                            bottom: 0,
+                                        })
+                                        .show(ui, |ui| {
+                                            ui.set_width(win.width());
+                                            ui.label(
+                                                RichText::new(top.title_l1).color(Color32::WHITE),
+                                            );
+                                            ui.spacing();
 
-                                        for sec2 in top.sections {
-                                            let mut color = None;
-                                            if let Some(word_kind) = sec2.kind {
-                                                color = Some(
-                                                    match word_kind.label {
-                                                        WordTypeID::Noun => Color32::ORANGE,
-                                                        WordTypeID::Verb => Color32::LIGHT_BLUE,
-                                                        WordTypeID::Adv => Color32::LIGHT_GREEN,
-                                                        WordTypeID::Other => Color32::WHITE,
-                                                        WordTypeID::Adj => Color32::YELLOW,
-                                                    }
-                                                    .blend(Color32::GRAY.gamma_multiply(0.2))
-                                                    .blend(Color32::WHITE.gamma_multiply(0.5)),
-                                                );
-                                                ui.label(
-                                                    RichText::new(word_kind.text)
-                                                        .color(color.unwrap()),
-                                                );
+                                            for sec2 in top.sections {
+                                                let mut color = None;
+                                                if let Some(word_kind) = sec2.kind {
+                                                    color = Some(
+                                                        match word_kind.label {
+                                                            WordTypeID::Noun => Color32::ORANGE,
+                                                            WordTypeID::Verb => Color32::LIGHT_BLUE,
+                                                            WordTypeID::Adv => Color32::LIGHT_GREEN,
+                                                            WordTypeID::Other => Color32::WHITE,
+                                                            WordTypeID::Adj => Color32::YELLOW,
+                                                        }
+                                                        .blend(Color32::GRAY.gamma_multiply(0.2))
+                                                        .blend(Color32::WHITE.gamma_multiply(0.5)),
+                                                    );
+                                                    ui.label(
+                                                        RichText::new(word_kind.text)
+                                                            .color(color.unwrap()),
+                                                    );
+                                                }
+                                                if let Some(ipa) = sec2.ipa {
+                                                    ui.horizontal(|ui| {
+                                                        for tn in ipa.into_iter() {
+                                                            ui.label(
+                                                                RichText::new(tn).background_color(
+                                                                    Color32::LIGHT_BLUE
+                                                                        .gamma_multiply(0.35),
+                                                                ),
+                                                            );
+                                                        }
+                                                    });
+                                                }
+                                                for sec3 in sec2.content {
+                                                    self.show_section_t(sec3, ui);
+                                                }
                                             }
-                                            if let Some(ipa) = sec2.ipa {
-                                                ui.horizontal(|ui| {
-                                                    for tn in ipa.into_iter() {
-                                                        ui.label(
-                                                            RichText::new(tn).background_color(
-                                                                Color32::LIGHT_BLUE
-                                                                    .gamma_multiply(0.35),
-                                                            ),
-                                                        );
-                                                    }
-                                                });
-                                            }
-                                            for sec3 in sec2.content {
-                                                self.show_section_t(sec3, ui);
-                                            }
-                                        }
-                                    });
+                                        });
+                                });
                             });
+                        ui.add_space(4.);
+                        ui.horizontal(|ui| {
+                            let text = TextEdit::singleline(&mut self.text)
+                                .background_color(Color32::BLACK.gamma_multiply(0.2))
+                                .vertical_align(egui::Align::Center)
+                                .desired_width(220.)
+                                .ui(ui);
+                            if text.changed() {
+                                info!("input = {}", self.text);
+                                let _ = self.wsx.send(self.text.clone());
+                            }
+                            if true {
+                                if ui.button("exit").clicked() {
+                                    self.ui.send(Msg::Exit).unwrap();
+                                    ctx.request_repaint();
+                                }
+                                if ui.button("hide").clicked() {
+                                    self.ui.send(Msg::Hide(true)).unwrap();
+                                    ctx.request_repaint();
+                                }
+                            }
                         });
-                    ui.add_space(4.);
-                    ui.horizontal(|ui| {
-                        let text = TextEdit::singleline(&mut self.text)
-                            .background_color(Color32::BLACK.gamma_multiply(0.2))
-                            .vertical_align(egui::Align::Center)
-                            .desired_width(220.)
-                            .ui(ui);
-                        if text.changed() {
-                            info!("input = {}", self.text);
-                            let _ = self.wsx.send(self.text.clone());
-                        }
-                        if true {
-                            if ui.button("exit").clicked() {
-                                self.ui.send(Msg::Exit).unwrap();
-                                ctx.request_repaint();
-                            }
-                            if ui.button("hide").clicked() {
-                                self.ui.send(Msg::Hide(true)).unwrap();
-                                ctx.request_repaint();
-                            }
-                        }
-                    });
-                })
-            });
+                    })
+                });
+        }
     }
 
     fn show_section_t(&self, sec3: SectionT, ui: &mut Ui) {
