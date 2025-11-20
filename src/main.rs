@@ -513,6 +513,7 @@ impl HoverPanelApp {
                     egui::Frame::new()
                         .inner_margin(Margin {
                             bottom: 4,
+                            top: 0,
                             ..Margin::same(15)
                         })
                         .fill(
@@ -545,12 +546,16 @@ impl HoverPanelApp {
                             .show(ui, |ui| {
                                 self.render_items(|top| {
                                     egui::frame::Frame::new()
-                                        .fill(Color32::WHITE.gamma_multiply(0.08))
-                                        .inner_margin(Margin::same(10))
+                                        .fill(Color32::WHITE.gamma_multiply(0.2))
+                                        .inner_margin({
+                                            let mut m = Margin::same(10);
+                                            m.bottom = 5;
+                                            m
+                                        })
                                         .outer_margin(Margin {
                                             left: -16,
                                             right: 0,
-                                            top: 15,
+                                            top: 0,
                                             bottom: 0,
                                         })
                                         .show(ui, |ui| {
