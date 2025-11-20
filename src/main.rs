@@ -76,7 +76,7 @@ fn main() -> Result<()> {
 
     let opts = LayerShellOptions {
         width: if START_AS_DEBUG { 1000 } else { 400 },
-        height: 1200,
+        height: 1000,
         anchor: Some(Anchor::BOTTOM | Anchor::LEFT),
         margin: (0, 0, 0, 0),
         namespace: "hoverpanel".to_string(),
