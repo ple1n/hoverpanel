@@ -638,14 +638,21 @@ impl HoverPanelApp {
                             });
                         ui.add_space(4.);
                         ui.horizontal(|ui| {
+                            if self.us.did_focus {
+                                for k in &self.us.last_keys {
+                                    let p =  k.name();
+                                    if p.len() == 1{
+                                        self.text = p.to_lowercase().to_owned();
+                                        break;
+                                    }
+                                }
+                                self.us.did_focus = false;
+                            }
                             let text = TextEdit::singleline(&mut self.text)
                                 .background_color(Color32::BLACK.gamma_multiply(0.2))
                                 .vertical_align(egui::Align::Center)
+                                .cursor_at_end(true)
                                 .desired_width(220.);
-                            if self.us.did_focus {
-
-                                self.us.did_focus = false;
-                            }
 
                             let text = text.ui(ui);
 
