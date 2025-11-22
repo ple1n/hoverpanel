@@ -30,10 +30,6 @@ use tokio::{
 };
 use tracing::{Level, error, info, level_filters::LevelFilter, warn};
 use tracing_subscriber::{Layer, filter::targets, layer::SubscriberExt, util::SubscriberInitExt};
-use wayland::eframe::{
-    NativeOptions,
-    egui::{FontData, FontDefinitions, FontFamily, FontId, Style, TextEdit, Widget, frame},
-};
 use wayland::{
     self, App,
     application::{EvRx, Msg, MsgQueue, WPEvent, WgpuLayerShellApp},
@@ -44,6 +40,13 @@ use wayland::{
     layer_shell::{Anchor, KeyboardInteractivity, LayerShellOptions, WgpuLayerShellState},
     proto::{DEFAULT_SERVE_PATH, KeyCode, Kind, ProtoGesture, TapDist},
     run_layer,
+};
+use wayland::{
+    eframe::{
+        NativeOptions,
+        egui::{FontData, FontDefinitions, FontFamily, FontId, Style, TextEdit, Widget, frame},
+    },
+    egui::Key,
 };
 
 use anyhow::{Result, anyhow};
@@ -127,6 +130,12 @@ fn main() -> Result<()> {
                 wsx: wsx2,
                 evrx,
                 bg_opacity: 1.,
+                us: UIState {
+                    last_opacity: 1.,
+                    brought_visible: false,
+                    last_keys: Default::default(),
+                    did_focus: false,
+                },
             };
             Ok(Box::new(app))
         }),
@@ -305,6 +314,14 @@ struct HoverPanelApp {
     evrx: EvRx,
     /// Opacity for base window
     bg_opacity: f32,
+    us: UIState,
+}
+
+struct UIState {
+    last_opacity: f32,
+    brought_visible: bool,
+    did_focus: bool,
+    last_keys: HashSet<Key>,
 }
 
 enum SearchStatus {
@@ -508,6 +525,8 @@ impl HoverPanelApp {
         ctx.set_visuals(li);
 
         if self.bg_opacity > 0.0 {
+            self.us.brought_visible = self.bg_opacity != self.us.last_opacity;
+
             egui::CentralPanel::default()
                 .frame(
                     egui::Frame::new()
@@ -524,6 +543,20 @@ impl HoverPanelApp {
                         ),
                 )
                 .show(ctx, |ui| {
+                    let mut do_focus = false;
+                    ui.input(|ip| {
+                        if ip.keys_down.len() > 0 {
+                            let single_char =
+                                ip.keys_down.iter().all(|k| k.name().chars().count() == 1);
+                            let ok_modifiers = {
+                                !ip.modifiers.ctrl && !ip.modifiers.alt && !ip.modifiers.command
+                            };
+                            if single_char && ok_modifiers {
+                                do_focus = true;
+                                self.us.last_keys = ip.keys_down.clone();
+                            }
+                        }
+                    });
                     let mut st = Style::default();
                     st.text_styles.insert(
                         egui::TextStyle::Body,
@@ -608,8 +641,14 @@ impl HoverPanelApp {
                             let text = TextEdit::singleline(&mut self.text)
                                 .background_color(Color32::BLACK.gamma_multiply(0.2))
                                 .vertical_align(egui::Align::Center)
-                                .desired_width(220.)
-                                .ui(ui);
+                                .desired_width(220.);
+                            if self.us.did_focus {
+
+                                self.us.did_focus = false;
+                            }
+
+                            let text = text.ui(ui);
+
                             if text.changed() {
                                 info!("input = {}", self.text);
                                 let _ = self.wsx.send(self.text.clone());
@@ -624,10 +663,19 @@ impl HoverPanelApp {
                                     ctx.request_repaint();
                                 }
                             }
+
+                            if !text.has_focus() {
+                                if do_focus {
+                                    text.request_focus();
+                                    self.us.did_focus = true;
+                                }
+                            }
                         });
                     })
                 });
         }
+
+        self.us.last_opacity = self.bg_opacity;
     }
 
     fn show_section_t(&self, sec3: SectionT, ui: &mut Ui) {
