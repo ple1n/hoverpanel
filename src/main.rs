@@ -565,6 +565,7 @@ impl HoverPanelApp {
                             family: FontFamily::Proportional,
                         },
                     );
+                    st.wrap_mode = Some(egui::TextWrapMode::Wrap);
                     ctx.set_style(st);
                     let h = ui.available_height() - 30.;
                     ui.vertical(|ui| {
@@ -592,7 +593,7 @@ impl HoverPanelApp {
                                             bottom: 0,
                                         })
                                         .show(ui, |ui| {
-                                            ui.set_width(win.width());
+                                            ui.set_width(win.width() - 10.);
                                             ui.label(
                                                 RichText::new(top.title_l1).color(Color32::WHITE),
                                             );
@@ -640,8 +641,8 @@ impl HoverPanelApp {
                         ui.horizontal(|ui| {
                             if self.us.did_focus {
                                 for k in &self.us.last_keys {
-                                    let p =  k.name();
-                                    if p.len() == 1{
+                                    let p = k.name();
+                                    if p.len() == 1 {
                                         self.text = p.to_lowercase().to_owned();
                                         break;
                                     }
