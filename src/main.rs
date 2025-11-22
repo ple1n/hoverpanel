@@ -34,7 +34,9 @@ use wayland::{
     self, App,
     application::{EvRx, Msg, MsgQueue, WPEvent, WgpuLayerShellApp},
     async_bincode::{self, futures::AsyncBincodeStream},
-    egui::{self, Color32, Context, Margin, RichText, Ui, Vec2, Visuals, scroll_area},
+    egui::{
+        self, Color32, Context, Event, ImeEvent, Margin, RichText, Ui, Vec2, Visuals, scroll_area,
+    },
     egui_chinese_font::{self, load_chinese_font},
     errors::wrap_noncritical_sync,
     layer_shell::{Anchor, KeyboardInteractivity, LayerShellOptions, WgpuLayerShellState},
@@ -523,7 +525,6 @@ impl HoverPanelApp {
         li.override_text_color = Some(Color32::WHITE.gamma_multiply(1.));
         li.weak_text_alpha = 0.6;
         ctx.set_visuals(li);
-
         if self.bg_opacity > 0.0 {
             self.us.brought_visible = self.bg_opacity != self.us.last_opacity;
 
@@ -639,7 +640,29 @@ impl HoverPanelApp {
                             });
                         ui.add_space(4.);
                         ui.horizontal(|ui| {
-                            if self.us.did_focus {
+                            let mut insert_char = true;
+                            ctx.input(|ix| {
+                                for ev in &ix.events {
+                                    match ev {
+                                        Event::Ime(ImeEvent::Commit(text)) => {
+                                            insert_char = false;
+                                            self.text = text.clone();
+                                            let _ = self.wsx.send(self.text.clone());
+                                        }
+                                        Event::Ime(ImeEvent::Preedit(text)) => {
+                                            insert_char = false;
+                                        }
+                                        Event::Ime(ImeEvent::Enabled) => {
+                                            warn!("IME enabled");
+                                            self.text.clear();
+                                            do_focus = true;
+                                        }
+                                        _ => {}
+                                    }
+                                }
+                            });
+                            
+                            if self.us.did_focus && insert_char {
                                 for k in &self.us.last_keys {
                                     let p = k.name();
                                     if p.len() == 1 {
@@ -656,7 +679,6 @@ impl HoverPanelApp {
                                 .desired_width(220.);
 
                             let text = text.ui(ui);
-
                             if text.changed() {
                                 info!("input = {}", self.text);
                                 let _ = self.wsx.send(self.text.clone());
