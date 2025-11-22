@@ -5,7 +5,13 @@ It's currently recommended to use [Niri](https://github.com/YaLTeR/niri) because
 
 work in progress.
 
+![](https://github.com/user-attachments/assets/6d1c7cac-2a0d-4f95-8051-ee38e2c1d8a9)
+
+On Niri (which does not work with kde-blur yet)
+
 ![](https://github.com/user-attachments/assets/7f94c94d-a58d-44dc-a0f4-2dd725c9e705)
+
+On Kwin (currently broken)
 
 building
 
